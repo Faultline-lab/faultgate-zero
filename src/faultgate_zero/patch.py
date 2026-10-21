@@ -107,8 +107,7 @@ def _end(run: Run, adapter: Any, call: ModelCall | None, result: Any, error: Bas
         return result
 
 
-def _wrap(original: Callable[..., Any], target: Target) -> Callable[..., Any]:
-    adapter = adapters.get(target.adapter)
+def _wrap(original: Callable[..., Any], target: Target, adapter: Any) -> Callable[..., Any]:
     starter = target.starter
     # method targets get the SDK resource as args[0]; module functions (litellm) do not
     skip_self = 1 if target.owner else 0
@@ -174,6 +173,7 @@ def _patch_one(t: Target, gen: int) -> list[str]:
     top = t.module.split(".")[0]
     try:
         mod = importlib.import_module(t.module)
+        adapter = adapters.get(t.adapter)  # an import too: also before the lock
     except Exception as exc:
         _warn(f"faultgate-zero: cannot import {t.module} ({exc}); its calls are not captured")
         return []
@@ -192,7 +192,7 @@ def _patch_one(t: Target, gen: int) -> list[str]:
                 mine._fgz_disabled = False
                 _installed.append((owner, t.method, mine))
             return [t.path]
-        wrapper = _wrap(current, t)
+        wrapper = _wrap(current, t, adapter)
         wrapper._fgz_inherited = t.method not in owner.__dict__
         setattr(owner, t.method, wrapper)
         _installed.append((owner, t.method, wrapper))
@@ -257,13 +257,17 @@ def install(targets: list[Target] | None = None) -> list[str]:
     """Patch every SDK method in ``targets`` whose SDK is already imported, and the rest as soon as the
     agent's code imports their SDK. Returns the paths patched now. Safe to call twice."""
     now: list[Target] = []
+    wanted = list(targets if targets is not None else TARGETS)
+    # outside the lock too: finders may touch the import system; a top-level find_spec imports nothing
+    found = {top for top in {t.module.split(".")[0] for t in wanted} - set(sys.modules)
+             if importlib.util.find_spec(top) is not None}
     with _lock:
         gen = _generation
-        for t in targets if targets is not None else TARGETS:
+        for t in wanted:
             top = t.module.split(".")[0]
             if top in sys.modules:
                 now.append(t)
-            elif importlib.util.find_spec(top) is not None:  # a top-level find_spec does not import anything
+            elif top in found:
                 waiting = _pending.setdefault(top, [])
                 if t not in waiting:
                     waiting.append(t)

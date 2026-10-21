@@ -404,3 +404,29 @@ def test_decorated_tool_defaults_are_checked_by_policy():
     assert json.loads(st.arguments) == {"order_id": "1", "amount": 900, "note": "manual"}
     pol = Policy.from_dict({"tools": {"issue_refund": {"limits": {"amount": 500}}}})
     assert run.check(checks="policy", policy=pol).fired[0].reason == "step 1: issue_refund.amount 900 > max 500"
+
+
+# third Codex re-review (REJECT): two findings
+
+def test_case_insensitive_overlap_in_alternatives_is_refused():
+    with pytest.raises(PolicyError, match="repeats a group"):
+        Policy.from_dict({"deny_patterns": ["(a|AA)+$"]})
+    Policy.from_dict({"deny_patterns": ["(foo|Bar)+"]})
+
+
+def test_nothing_is_imported_while_the_lock_is_held(monkeypatch):
+    import importlib
+
+    held = []
+    real = importlib.import_module
+
+    def spy(name, *a, **k):
+        held.append((name, patch._lock._is_owned()))
+        return real(name, *a, **k)
+
+    monkeypatch.setattr(importlib, "import_module", spy)
+    fz.uninstall()
+    fz.install()
+    with fz.run():
+        pass
+    assert held and not [n for n, owned in held if owned]

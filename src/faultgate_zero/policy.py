@@ -190,7 +190,8 @@ def _literal_alternatives(av: Any) -> bool:
     alts = av[1]
     if not all(alt and all(op is _c.LITERAL for op, _ in alt) for alt in alts):
         return False
-    firsts = [alt[0][1] for alt in alts]
+    # patterns compile with re.I: compare first characters case-folded, or (a|AA)+ would pass as distinct
+    firsts = [chr(alt[0][1]).casefold() for alt in alts]
     return len(set(firsts)) == len(firsts)
 
 
