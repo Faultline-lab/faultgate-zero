@@ -132,7 +132,7 @@ class Policy:
                 out.append((st.index, f"{where}: {st.tool} arguments are {len(st.arguments)} chars > max_arg_chars {self.max_arg_chars}"))
             else:  # all of it: a cap would let a long argument hide a denied path at its end
                 for rx in self.deny:
-                    if rx.search(st.arguments):
+                    if _search(rx, st.arguments):
                         out.append((st.index, f"{where}: {st.tool} arguments match denied pattern {rx.pattern!r}"))
                         break
             rule = self.tools.get(st.tool)
@@ -174,6 +174,31 @@ class Policy:
 _REPEATS = {_c.MAX_REPEAT, _c.MIN_REPEAT, getattr(_c, "POSSESSIVE_REPEAT", _c.MAX_REPEAT)}
 
 
+WINDOW, OVERLAP = 1024, 256
+
+
+def _search(rx: re.Pattern[str], text: str) -> bool:
+    """Search all of ``text``, in overlapping windows when it is long. re.search retries from every start
+    position, so even a non-exponential pattern (``\\w+$``) is quadratic on a long non-matching
+    argument; windows keep the total linear in the argument's length. A match up to OVERLAP characters
+    long is always found; a longer one straddling two windows can be missed."""
+    n = len(text)
+    if n <= WINDOW:
+        return rx.search(text) is not None
+    i = 0
+    while True:
+        end = min(i + WINDOW, n)
+        m = rx.search(text, i, end)
+        # In a window that is not the last, $ and lookaheads see the window's end as the text's end. A
+        # leftmost match touching it is left to the next window, which starts OVERLAP characters earlier:
+        # every match of up to OVERLAP characters starting at or after it lies inside that window.
+        if m is not None and (end == n or m.end() < end):
+            return True
+        if end == n:
+            return False
+        i = end - OVERLAP
+
+
 def _children(av: Any) -> list[Any]:
     """Every sub-pattern inside a node's argument, whatever the node type (groups, atomic groups,
     lookarounds, conditionals, repeats, branches)."""
@@ -190,9 +215,14 @@ def _literal_alternatives(av: Any) -> bool:
     alts = av[1]
     if not all(alt and all(op is _c.LITERAL for op, _ in alt) for alt in alts):
         return False
-    # patterns compile with re.I: compare first characters case-folded, or (a|AA)+ would pass as distinct
-    firsts = [chr(alt[0][1]).casefold() for alt in alts]
-    return len(set(firsts)) == len(firsts)
+    # Patterns compile with re.I, whose Unicode folding differs from str.casefold() (dotless i, the Kelvin
+    # sign, long s...). Only ASCII first characters are trusted: two different ASCII letters, ignoring
+    # case, never match the same character. Any non-ASCII first character counts as possibly overlapping.
+    firsts = [chr(alt[0][1]) for alt in alts]
+    if any(ord(ch) > 127 for ch in firsts):
+        return False
+    folded = [ch.lower() for ch in firsts]
+    return len(set(folded)) == len(folded)
 
 
 def _ambiguous(sub: Any) -> bool:

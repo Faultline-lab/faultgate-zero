@@ -40,6 +40,10 @@ What faultgate-zero does not do, or does imperfectly, as of 0.1.0 (unreleased).
   not all the calls returned the same result. A poll that never changes state does.
 - **A missing `user_id` fails the identity rule on purpose.** A policy with `identity_arg` cannot be
   satisfied without knowing who the user is; pass `fz.run(user_id=...)`.
+- **Long arguments are scanned in windows.** Arguments over 1,024 characters are searched in
+  overlapping 1,024-character windows (256 characters of overlap), so the time a deny pattern takes
+  grows linearly with the argument, and a denied path is found wherever it sits. A single match longer
+  than 256 characters that straddles two windows can be missed; keep deny patterns short.
 - **Deny patterns are vetted conservatively.** A pattern that repeats a group which itself repeats or
   branches is refused, including some safe ones such as `(?:ab?)+`. Split it into simpler patterns.
 - **Plain-text errors are not recognised** unless they start with `Error:`, `Exception:` or a

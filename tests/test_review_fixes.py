@@ -408,10 +408,43 @@ def test_decorated_tool_defaults_are_checked_by_policy():
 
 # third Codex re-review (REJECT): two findings
 
-def test_case_insensitive_overlap_in_alternatives_is_refused():
+@pytest.mark.parametrize("pattern", ["(a|AA)+$", "(i|ıı)+$", "(k|KK)+$", "(s|ſſ)+$",
+                                     "(ıı|i)+$"])
+def test_case_insensitive_overlap_in_alternatives_is_refused(pattern):
+    # re.I folds dotless i, the Kelvin sign and long s onto ASCII letters
     with pytest.raises(PolicyError, match="repeats a group"):
-        Policy.from_dict({"deny_patterns": ["(a|AA)+$"]})
-    Policy.from_dict({"deny_patterns": ["(foo|Bar)+"]})
+        Policy.from_dict({"deny_patterns": [pattern]})
+
+
+def test_ascii_literal_alternatives_stay_accepted():
+    import re as _re
+
+    ok = ["(foo|Bar)+", "(ab|cd|ef)+", "(ı|i)+$"]  # single characters become one class: one way to match
+    Policy.from_dict({"deny_patterns": ok})
+
+
+@pytest.mark.parametrize("pattern", ["(ı|i)+$", r"\w+$", "[a-z]+!x", "i+$"])
+def test_quadratic_patterns_stay_bounded_on_long_arguments(pattern):
+    # not exponential, but re.search retries from every start: quadratic on one long argument
+    pol = Policy.from_dict({"deny_patterns": [pattern]})
+    t = trace([step("f", "i" * 100_000 + "!")])
+    t0 = time.perf_counter()
+    pol.violations(t)
+    assert time.perf_counter() - t0 < 1.5, pattern
+
+
+def test_windowed_scan_finds_matches_anywhere_and_respects_end_anchors():
+    from faultgate_zero.policy import OVERLAP, WINDOW, _search
+    import re as _re
+
+    rx = _re.compile("/etc/passwd", _re.I)
+    for at in (0, WINDOW - 5, WINDOW - OVERLAP + 3, 3 * WINDOW + 17, 100_000):
+        text = "x" * at + "/etc/passwd" + "y" * 300
+        assert _search(rx, text), at
+    end = _re.compile(r"secret\}$", _re.I)
+    assert _search(end, "a" * 50_000 + "secret}")          # really at the end
+    assert not _search(end, "secret}" + "a" * 50_000)      # only at a window edge would be a false hit
+    assert not _search(_re.compile(r"x$"), "x" * (WINDOW - 1) + "y" * 50_000)
 
 
 def test_nothing_is_imported_while_the_lock_is_held(monkeypatch):
