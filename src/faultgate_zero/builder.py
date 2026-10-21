@@ -40,6 +40,8 @@ def build_trace(run: Run) -> Trace:
             run.mark_incomplete(f"{call.adapter}.normalise", exc)
         if call.error is not None:
             attrs["error.type"] = type(call.error).__qualname__
+            if run.escaped(call.error):
+                attrs["faultgate.error_escaped"] = True
         chats.append(Span(span_id(run.id, f"chat-{i}"), root_id, f"chat {call.model}".strip(), call.start_ns,
                           call.end_ns, drop_none(attrs), error=call.error is not None,
                           status_message=_short(call.error)))
@@ -79,5 +81,7 @@ def _tool_span(run: Run, root_id: str, j: int, t: ToolCall) -> Span:
     })
     if t.error is not None:
         attrs["gen_ai.tool.call.result"] = f"Error: {_short(t.error, 300)}"
+        if run.escaped(t.error):
+            attrs["faultgate.error_escaped"] = True
     return Span(span_id(run.id, f"tool-{j}"), root_id, f"{TOOL} {t.name}", t.start_ns, t.end_ns, attrs,
                 error=t.error is not None, status_message=_short(t.error))

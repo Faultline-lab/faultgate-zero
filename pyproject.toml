@@ -25,3 +25,7 @@ Homepage = "https://github.com/Faultline-lab/faultgate-zero"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+# Our own unit tests drive fake agents that fail on purpose; the plugin's behaviour is tested with pytester.
+[tool.faultgate_zero]
+mode = "off"

@@ -22,6 +22,18 @@ def finish(call: ModelCall, result: Any, run: Run) -> Any:
     return result
 
 
+def tool_calls(call: ModelCall) -> list[tuple[str, str]]:
+    """(call id, tool name) for each tool call in this response, in order."""
+    choices = as_dict(call.response).get("choices") or []
+    msg = as_dict(choices[0].get("message")) if choices else {}
+    out = []
+    for tc in msg.get("tool_calls") or []:
+        tc = as_dict(tc)
+        fn = as_dict(tc.get("function") or tc.get("custom"))
+        out.append((str(tc.get("id")), str(fn.get("name"))))
+    return out
+
+
 def normalise(call: ModelCall) -> dict[str, Any]:
     attrs: dict[str, Any] = {"gen_ai.input.messages": [_message(m) for m in call.request.get("messages", [])]}
     d = as_dict(call.response) if call.response is not None else {}

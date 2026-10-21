@@ -35,6 +35,10 @@ class Target:
 TARGETS: list[Target] = [
     Target("openai.resources.chat.completions", "Completions", "create", False, "openai_chat"),
     Target("openai.resources.chat.completions", "AsyncCompletions", "create", True, "openai_chat"),
+    Target("anthropic.resources.messages", "Messages", "create", False, "anthropic_messages"),
+    Target("anthropic.resources.messages", "AsyncMessages", "create", True, "anthropic_messages"),
+    Target("anthropic.resources.beta.messages", "Messages", "create", False, "anthropic_messages"),
+    Target("anthropic.resources.beta.messages", "AsyncMessages", "create", True, "anthropic_messages"),
 ]
 
 _installed: list[tuple[Any, str, Callable[..., Any]]] = []

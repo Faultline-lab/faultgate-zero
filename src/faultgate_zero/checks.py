@@ -81,7 +81,7 @@ def unrecovered_tool_error(t: Trace, o: Options) -> Verdict:
     steps = t.steps
     for i, s in enumerate(steps):
         why = error_of(s)
-        if why is None:
+        if why is None or s.escaped:
             continue
         if any(later.tool == s.tool and later.result_seen and error_of(later) is None for later in steps[i + 1:]):
             continue
@@ -94,6 +94,8 @@ def unrecovered_tool_error(t: Trace, o: Options) -> Verdict:
 def unrecovered_model_error(t: Trace, o: Options) -> Verdict:
     calls = t.model_calls
     for i, c in enumerate(calls):
+        if c.attrs.get("faultgate.error_escaped"):
+            continue  # it left the agent: the run or the test dealt with it
         if c.error and not any(not later.error for later in calls[i + 1:]):
             kind = c.attrs.get("error.type", "error")
             return Verdict("unrecovered_model_error", True,

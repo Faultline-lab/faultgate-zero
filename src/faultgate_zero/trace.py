@@ -44,6 +44,7 @@ class Step:
     is_error: bool
     result_seen: bool
     span_id: str = ""
+    escaped: bool = False  # the tool raised and the exception left the agent (the test expected it)
 
 
 @dataclass
@@ -119,7 +120,8 @@ class Trace:
     def steps(self) -> list[Step]:
         results: dict[str, tuple[str, bool]] = {}
         for s in self.model_calls:
-            for m in messages(s.attrs.get("gen_ai.input.messages")):
+            # results come back in later requests; server-side tools return them in the same response
+            for m in messages(s.attrs.get("gen_ai.input.messages")) + messages(s.attrs.get("gen_ai.output.messages")):
                 for p in parts(m):
                     if p.get("type") == "tool_call_response" and p.get("id"):
                         results[str(p["id"])] = (payload_text(p.get("result")), _flag_error(p))
@@ -149,9 +151,11 @@ class Trace:
             if cid and cid in by_id:
                 st = by_id[cid]
                 st.result, st.is_error, st.result_seen, st.span_id = result, s.error, True, s.span_id
+                st.escaped = bool(s.attrs.get("faultgate.error_escaped"))
                 continue
             st = Step(0, str(s.attrs.get("gen_ai.tool.name", s.name)), cid,
-                      canonical_args(s.attrs.get("gen_ai.tool.call.arguments", "")), result, s.error, True, s.span_id)
+                      canonical_args(s.attrs.get("gen_ai.tool.call.arguments", "")), result, s.error, True, s.span_id,
+                      bool(s.attrs.get("faultgate.error_escaped")))
             timed.append((s.start_ns, seq, st))
             seq += 1
 
