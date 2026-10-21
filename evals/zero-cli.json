@@ -1,0 +1,29 @@
+{
+  "command": [".venv/Scripts/python", "-m", "pytest", "-p", "no:cacheprovider", "-q", "examples/refund_agent"],
+  "cases": [
+    {"name": "example: one clean run, six failing runs, one per default check", "args": [],
+     "expect": {"exit_code": 1, "contains": ["6 failed, 1 passed", "faultgate-zero: 7 runs checked, 6 with failures",
+       "search_loop  no answer after 8 tool calls (search_orders); 7 of 7 results were empty",
+       "repeated_call  step 3: lookup_order called 3x with identical arguments {\"order_id\":\"1042\"} and identical results",
+       "unrecovered_tool_error  step 1: lookup_order failed",
+       "unrecovered_model_error  model call 1 of 1 raised InternalServerError",
+       "context_overflow  model call 1 stopped on finish reason 'length'",
+       "policy  step 2: issue_refund.amount 900 > max 500",
+       "step 2: issue_refund called before a successful verify_identity"],
+       "not_contains": ["test_refunds_one_double_charge FAILED", "FAILED test_refund_agent.py::test_refunds_one_double_charge"]}},
+    {"name": "off mode: every answer-only test passes", "args": ["--fgz=off"],
+     "expect": {"exit_code": 0, "contains": ["7 passed", "faultgate-zero: off"]}},
+    {"name": "warn mode: tests pass and the failures are listed", "args": ["--fgz=warn"],
+     "expect": {"exit_code": 0, "contains": ["7 passed", "faultgate-zero warnings", "faultgate-zero: 7 runs checked, 6 with failures"]}},
+    {"name": "the clean run alone passes", "args": ["-k", "refunds_one"],
+     "expect": {"exit_code": 0, "contains": ["1 passed", "faultgate-zero: 1 runs checked, 0 with failures"]}},
+    {"name": "unknown check name is a usage error", "args": ["--fgz-checks=loops"],
+     "expect": {"exit_code": 4, "contains": ["unknown check 'loops'"]}},
+    {"name": "missing policy file is a usage error", "args": ["--fgz-policy=missing.json"],
+     "expect": {"exit_code": 4, "contains": ["not found"]}},
+    {"name": "xdist: two workers, one merged summary", "args": ["-n", "2"],
+     "expect": {"exit_code": 1, "contains": ["6 failed, 1 passed", "faultgate-zero: 7 runs checked, 6 with failures"]}},
+    {"name": "selecting only the policy check", "args": ["--fgz-checks=policy"],
+     "expect": {"exit_code": 1, "contains": ["1 failed, 6 passed", "faultgate-zero: 7 runs checked, 1 with failures"]}}
+  ]
+}

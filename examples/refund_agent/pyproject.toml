@@ -1,0 +1,7 @@
+# The example is its own pytest project: run `pytest` in this folder.
+[tool.pytest.ini_options]
+pythonpath = ["."]
+
+[tool.faultgate_zero]
+mode = "fail"
+policy = ".faultline/policy.json"

@@ -1,0 +1,13 @@
+{
+  "allow": ["verify_identity", "lookup_order", "search_orders", "issue_refund"],
+  "max_calls": 12,
+  "tools": {
+    "issue_refund": {
+      "max_calls": 1,
+      "limits": {"amount": 500},
+      "required_args": ["order_id", "amount"],
+      "identity_arg": "customer_id",
+      "requires": ["verify_identity"]
+    }
+  }
+}
