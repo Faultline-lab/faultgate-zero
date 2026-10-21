@@ -61,16 +61,28 @@ def _span(t: Trace, s: Span) -> dict[str, Any]:
     return out
 
 
-def export(traces: list[Trace]) -> dict[str, Any]:
+def spans_of(t: Trace) -> list[dict[str, Any]]:
+    """One trace's spans as OTLP/JSON span objects (xdist workers send these to the controller)."""
+    return [_span(t, s) for s in t.spans]
+
+
+def document(spans: list[dict[str, Any]]) -> dict[str, Any]:
     return {"resourceSpans": [{
         "resource": {"attributes": [{"key": "service.name", "value": {"stringValue": "faultgate-zero"}}]},
-        "scopeSpans": [{"scope": {"name": "faultgate_zero", "version": __version__},
-                        "spans": [_span(t, s) for t in traces for s in t.spans]}],
+        "scopeSpans": [{"scope": {"name": "faultgate_zero", "version": __version__}, "spans": spans}],
     }]}
 
 
+def export(traces: list[Trace]) -> dict[str, Any]:
+    return document([s for t in traces for s in spans_of(t)])
+
+
 def write(traces: list[Trace], path: str | Path) -> None:
-    Path(path).write_text(json.dumps(export(traces), ensure_ascii=False, indent=1), encoding="utf-8")
+    write_spans([s for t in traces for s in spans_of(t)], path)
+
+
+def write_spans(spans: list[dict[str, Any]], path: str | Path) -> None:
+    Path(path).write_text(json.dumps(document(spans), ensure_ascii=False, indent=1), encoding="utf-8")
 
 
 def _status_error(st: dict[str, Any]) -> bool:

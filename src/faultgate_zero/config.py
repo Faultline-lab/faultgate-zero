@@ -102,9 +102,11 @@ def resolve_session(opts: dict[str, Any], env: dict[str, str] | None = None, roo
             if not isinstance(pp[k], int) or isinstance(pp[k], bool) or pp[k] < 1:
                 raise ConfigError(f"[tool.faultgate_zero] {k}: must be a positive integer")
             o = replace(o, **{k: pp[k]})
+    def out(key: str) -> str | None:  # pyproject paths are relative to the project root
+        return _first(opts.get(key), str(root / pp[key]) if pp.get(key) else None)
+
     return Config(mode=mode, checks=checks, policy_path=policy_path, policy=policy, redact=red,
-                  json=_first(opts.get("json"), pp.get("json")), markdown=_first(opts.get("markdown"), pp.get("markdown")),
-                  export_otlp=_first(opts.get("export_otlp"), pp.get("export_otlp")), options=o, root=root)
+                  json=out("json"), markdown=out("markdown"), export_otlp=out("export_otlp"), options=o, root=root)
 
 
 def for_marker(cfg: Config, kwargs: dict[str, Any], where: str) -> Config:

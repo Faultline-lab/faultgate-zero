@@ -2,12 +2,14 @@
 from __future__ import annotations
 
 import inspect
-from collections import Counter
+import json
+import os
 from dataclasses import dataclass, field
 
 import pytest
 
-from . import patch, recorder, runner
+from . import otlp, patch, recorder, runner
+from . import report as rpt
 from .config import Config, ConfigError, for_marker, resolve_session
 from .policy import PolicyError
 
@@ -20,17 +22,10 @@ HINT = "hint: mark the test with @pytest.mark.faultgate(skip=[...]) if a check i
 
 
 @dataclass
-class Checked:
-    nodeid: str
-    run: recorder.Run
-    result: runner.RunResult
-
-
-@dataclass
 class _State:
     collecting: list | None = None
-    checked: list[Checked] = field(default_factory=list)
-    warned: list[tuple[str, str]] = field(default_factory=list)
+    entries: list[dict] = field(default_factory=list)  # one per checked run, from this process or xdist workers
+    spans: list[dict] = field(default_factory=list)    # OTLP spans, only with --fgz-export-otlp
 
     def on_close(self, run: recorder.Run) -> None:
         if self.collecting is not None:
@@ -75,10 +70,11 @@ def _installed_raises_hook() -> None:
 def pytest_configure(config: pytest.Config) -> None:
     config.addinivalue_line("markers", "faultgate(skip=[...], checks=..., policy=..., mode=..., off=False): "
                                        "Faultgate-Zero settings for this test")
+    here = config.invocation_params.dir  # command-line paths are relative to where pytest was run
     opts = {"mode": config.getoption("fgz_mode"), "checks": config.getoption("fgz_checks"),
-            "policy": config.getoption("fgz_policy"), "redact": config.getoption("fgz_redact"),
-            "json": config.getoption("fgz_json"), "markdown": config.getoption("fgz_markdown"),
-            "export_otlp": config.getoption("fgz_otlp")}
+            "policy": _abs(config.getoption("fgz_policy"), here), "redact": config.getoption("fgz_redact"),
+            "json": _abs(config.getoption("fgz_json"), here), "markdown": _abs(config.getoption("fgz_markdown"), here),
+            "export_otlp": _abs(config.getoption("fgz_otlp"), here)}
     try:
         cfg = resolve_session(opts, root=config.rootpath)
     except (ConfigError, PolicyError, ValueError) as exc:
@@ -92,6 +88,10 @@ def pytest_configure(config: pytest.Config) -> None:
     _installed_raises_hook()
     runner.set_default_settings(cfg.settings)
     recorder.add_listener(state.on_close)
+
+
+def _abs(path: str | None, base) -> str | None:
+    return None if path is None else os.path.join(str(base), path)
 
 
 def pytest_unconfigure(config: pytest.Config) -> None:
@@ -151,26 +151,54 @@ def pytest_runtest_makereport(item: pytest.Item, call: pytest.CallInfo):
     state = item.config.stash.get(_STATE, None)
     if not runs or icfg is None or state is None:
         return report
-    fired = []
     settings = icfg.settings
+    export = item.config.stash[_CFG].export_otlp is not None
+    checked: list[runner.RunResult] = []
     for r in runs:
-        if r.checked or not r.model_calls:
+        if not r.model_calls:
             continue
-        result = runner.check(r.trace, settings)
-        state.checked.append(Checked(item.nodeid, r, result))
-        if result.fired:
-            fired.append(result)
-    if not fired:
-        return report
-    text = "\n\n".join(res.summary() for res in fired) + "\n" + HINT
-    if icfg.mode == "fail" and report.passed and not hasattr(report, "wasxfail"):
-        report.outcome = "failed"
-        report.longrepr = text
-    else:
-        report.sections.append(("faultgate-zero", text))
-        if report.passed:
-            state.warned.append((item.nodeid, text))
+        if export:
+            state.spans += otlp.spans_of(r.trace)
+        if not r.checked:
+            checked.append(runner.check(r.trace, settings))
+    fired = [res for res in checked if res.fired]
+    if fired:
+        text = "\n\n".join(res.summary() for res in fired) + "\n" + HINT
+        if icfg.mode == "fail" and report.passed and not hasattr(report, "wasxfail"):
+            report.outcome = "failed"
+            report.longrepr = text
+        else:
+            report.sections.append(("faultgate-zero", text))
+    state.entries += [rpt.entry(item.nodeid, res, report.passed) for res in checked]
     return report
+
+
+def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
+    config = session.config
+    state, cfg = config.stash.get(_STATE, None), config.stash.get(_CFG, None)
+    if state is None or cfg is None or cfg.mode == "off":
+        return
+    if hasattr(config, "workeroutput"):  # an xdist worker: hand everything to the controller
+        config.workeroutput["faultgate_zero"] = json.dumps({"entries": state.entries, "spans": state.spans})
+        return
+    if cfg.json:
+        rpt.write_json(state.entries, cfg.json)
+    if cfg.markdown:
+        rpt.write_markdown(state.entries, cfg.markdown)
+    if cfg.export_otlp:
+        otlp.write_spans(state.spans, cfg.export_otlp)
+
+
+@pytest.hookimpl(optionalhook=True)
+def pytest_testnodedown(node, error) -> None:
+    """xdist controller: collect a finished worker's checked runs."""
+    state = node.config.stash.get(_STATE, None)
+    raw = getattr(node, "workeroutput", {}).get("faultgate_zero")
+    if state is None or not raw:
+        return
+    data = json.loads(raw)
+    state.entries += data.get("entries", [])
+    state.spans += data.get("spans", [])
 
 
 def pytest_terminal_summary(terminalreporter, exitstatus: int, config: pytest.Config) -> None:
@@ -182,18 +210,20 @@ def pytest_terminal_summary(terminalreporter, exitstatus: int, config: pytest.Co
     if cfg.mode == "off":
         tr.write_line("faultgate-zero: off")
         return
-    if state.warned:
+    warned = [e for e in state.entries if e["_fired"] and e["_test_passed"]]
+    if warned:
         tr.write_sep("-", "faultgate-zero warnings")
-        for nodeid, text in state.warned:
-            tr.write_line(nodeid)
-            for line in text.splitlines():
+        for e in warned:
+            tr.write_line(e["test"])
+            for line in e["_summary"].splitlines():
                 tr.write_line(f"  {line}")
-    failed = [c for c in state.checked if c.result.fired]
-    counts = Counter(v.check for c in failed for v in c.result.fired)
-    skipped = sum(1 for c in state.checked if c.result.skipped)
-    line = f"faultgate-zero: {len(state.checked)} runs checked, {len(failed)} with failures"
-    if skipped:
-        line += f", {skipped} skipped (capture incomplete)"
+    s = rpt.summary(state.entries)
+    line = f"faultgate-zero: {s['runs']} runs checked, {s['failed_runs']} with failures"
+    if s["skipped_runs"]:
+        line += f", {s['skipped_runs']} skipped (capture incomplete)"
     tr.write_line(line)
-    for name, n in sorted(counts.items()):
+    for name, n in s["fired"].items():
         tr.write_line(f"  {name}: {n}")
+    for label, path in (("JSON report", cfg.json), ("Markdown summary", cfg.markdown), ("OTLP export", cfg.export_otlp)):
+        if path:
+            tr.write_line(f"faultgate-zero: {label} written to {path}")
