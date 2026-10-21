@@ -154,20 +154,30 @@ def _wrap(original: Callable[..., Any], target: Target) -> Callable[..., Any]:
     return wrapper
 
 
+_lock = threading.RLock()  # install, uninstall and patching on import
+_generation = 0  # bumped by every uninstall()
+
+
+def _warn(msg: str) -> None:
+    """Warn without ever raising: with -W error a warning must not break the agent's import or call."""
+    try:
+        warnings.warn(msg, FaultgateZeroWarning, stacklevel=3)
+    except Exception:
+        pass
+
+
 def _patch_one(t: Target) -> list[str]:
     top = t.module.split(".")[0]
     try:
         mod = importlib.import_module(t.module)
     except Exception as exc:
-        warnings.warn(f"faultgate-zero: cannot import {t.module} ({exc}); its calls are not captured",
-                      FaultgateZeroWarning, stacklevel=3)
+        _warn(f"faultgate-zero: cannot import {t.module} ({exc}); its calls are not captured")
         return []
     owner = getattr(mod, t.owner, None) if t.owner else mod
     # getattr_static: the plain function, also when inherited from a base class
     current = inspect.getattr_static(owner, t.method, None) if owner is not None else None
     if current is None:
-        warnings.warn(f"faultgate-zero: {t.path} not found in this {top} version; its calls are not captured",
-                      FaultgateZeroWarning, stacklevel=3)
+        _warn(f"faultgate-zero: {t.path} not found in this {top} version; its calls are not captured")
         return []
     mine = _ours(current)
     if mine is not None:
@@ -196,12 +206,17 @@ class _PatchingLoader(importlib.abc.Loader):
 
     def exec_module(self, module: Any) -> None:
         self._inner.exec_module(module)
-        for t in _pending.pop(self._name, []):
-            try:
-                _patch_one(t)
-            except Exception as exc:  # never break the agent's import
-                warnings.warn(f"faultgate-zero: could not patch {t.path} ({exc}); its calls are not captured",
-                              FaultgateZeroWarning, stacklevel=2)
+        with _lock:  # uninstall() from another thread waits for this; a cleared _pending means it ran first
+            gen = _generation
+            for t in _pending.pop(self._name, []):
+                if gen != _generation:
+                    break
+                try:
+                    _patch_one(t)
+                except Exception as exc:  # never break the agent's import
+                    _warn(f"faultgate-zero: could not patch {t.path} ({exc}); its calls are not captured")
+            if gen != _generation:  # uninstall() ran during the patching itself (same thread): honour it
+                uninstall()
 
     def __getattr__(self, name: str) -> Any:  # resource readers and the rest come from the real loader
         return getattr(self._inner, name)
@@ -238,34 +253,38 @@ def install(targets: list[Target] | None = None) -> list[str]:
     """Patch every SDK method in ``targets`` whose SDK is already imported, and the rest as soon as the
     agent's code imports their SDK. Returns the paths patched now. Safe to call twice."""
     patched: list[str] = []
-    for t in targets if targets is not None else TARGETS:
-        top = t.module.split(".")[0]
-        if top in sys.modules:
-            patched += _patch_one(t)
-        elif importlib.util.find_spec(top) is not None:  # a top-level find_spec does not import anything
-            waiting = _pending.setdefault(top, [])
-            if t not in waiting:
-                waiting.append(t)
-    if _pending and _hook not in sys.meta_path:
-        sys.meta_path.insert(0, _hook)
+    with _lock:
+        for t in targets if targets is not None else TARGETS:
+            top = t.module.split(".")[0]
+            if top in sys.modules:
+                patched += _patch_one(t)
+            elif importlib.util.find_spec(top) is not None:  # a top-level find_spec does not import anything
+                waiting = _pending.setdefault(top, [])
+                if t not in waiting:
+                    waiting.append(t)
+        if _pending and _hook not in sys.meta_path:
+            sys.meta_path.insert(0, _hook)
     return patched
 
 
 def uninstall() -> None:
     """Restore the methods ``install()`` replaced. A wrapper that another instrumentor wrapped since is
     switched off instead, so their wrapper keeps working."""
-    _pending.clear()
-    if _hook in sys.meta_path:
-        sys.meta_path.remove(_hook)
-    while _installed:
-        owner, name, wrapper = _installed.pop()
-        if owner.__dict__.get(name) is wrapper:
-            if getattr(wrapper, "_fgz_inherited", False):
-                delattr(owner, name)  # the base class's method shows through again
+    global _generation
+    with _lock:
+        _generation += 1
+        _pending.clear()
+        if _hook in sys.meta_path:
+            sys.meta_path.remove(_hook)
+        while _installed:
+            owner, name, wrapper = _installed.pop()
+            if owner.__dict__.get(name) is wrapper:
+                if getattr(wrapper, "_fgz_inherited", False):
+                    delattr(owner, name)  # the base class's method shows through again
+                else:
+                    setattr(owner, name, wrapper._fgz_original)
             else:
-                setattr(owner, name, wrapper._fgz_original)
-        else:
-            wrapper._fgz_disabled = True
+                wrapper._fgz_disabled = True
 
 
 def installed() -> list[str]:

@@ -138,7 +138,7 @@ Messages and response in OpenAI chat format. Outside a run it does nothing.
 | Key | Meaning |
 |---|---|
 | `allow` | Only these tools may be called. |
-| `deny_patterns` | Regexes (case-insensitive) searched in the arguments. Replaces the built-in list. |
+| `deny_patterns` | Regexes (case-insensitive) searched in the whole arguments. Replaces the built-in list. A pattern that repeats a group which itself repeats or has alternatives (`(a+)+`, `(a\|aa)+`) is refused: on model-written text it can take exponential time. |
 | `max_arg_chars`, `max_calls` | Per run: longest arguments, number of tool calls. |
 | `require_complete` | The run must end with an answer and no escaped exception. |
 | `tools.<name>.max_calls` | Calls of this tool per run. |

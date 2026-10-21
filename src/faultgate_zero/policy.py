@@ -7,13 +7,17 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+try:  # the stdlib regex parser (Python 3.11+); used only to vet deny patterns
+    import re._constants as _c
+    import re._parser as _parser
+except ImportError:  # pragma: no cover
+    import sre_constants as _c  # type: ignore[no-redef]
+    import sre_parse as _parser  # type: ignore[no-redef]
+
 from .results import arguments_of, error_of, get_path
 from .trace import Trace
 
-SCAN_CHARS = 100_000  # deny patterns read at most this much of one call's arguments
-# a group with + or * inside, itself followed by + * or {: (a+)+, (\w*)*, (x|y+){2,}
-NESTED_QUANTIFIER = re.compile(r"\((?:[^()\\]|\\.)*[+*](?:[^()\\]|\\.)*\)[+*{]")
-DEFAULT_DENY = (r"\.\./", r"\.\.\\", r"file://", r"~/\.ssh", r"/etc/passwd", r"id_rsa")
+DEFAULT_DENY =(r"\.\./", r"\.\.\\", r"file://", r"~/\.ssh", r"/etc/passwd", r"id_rsa")
 TOP_KEYS = {"allow", "deny_patterns", "max_arg_chars", "max_calls", "require_complete", "tools"}
 TOOL_KEYS = {"max_calls", "limits", "allowed_values", "required_args", "identity_arg", "requires"}
 
@@ -68,10 +72,11 @@ class Policy:
             pol.allow = _str_list(d["allow"], "allow", fail)
         if "deny_patterns" in d:
             pats = _str_list(d["deny_patterns"], "deny_patterns", fail)
-            slow = next((x for x in pats if NESTED_QUANTIFIER.search(x)), None)
+            slow = next((x for x in pats if _can_backtrack_exponentially(x)), None)
             if slow is not None:
-                raise fail("deny_patterns", f"{slow!r} repeats a repeated group, which can take exponential time "
-                                            "on long arguments; rewrite it without nesting + or *")
+                raise fail("deny_patterns", f"{slow!r} repeats a group that itself repeats or has alternatives, "
+                                            "which can take exponential time on model-written arguments; "
+                                            "rewrite it without that, e.g. as several simpler patterns")
             try:
                 pol.deny = [re.compile(x, re.I) for x in pats]
             except re.error as exc:
@@ -125,10 +130,9 @@ class Policy:
             too_long = self.max_arg_chars is not None and len(st.arguments) > self.max_arg_chars
             if too_long:
                 out.append((st.index, f"{where}: {st.tool} arguments are {len(st.arguments)} chars > max_arg_chars {self.max_arg_chars}"))
-            else:  # the model writes the arguments: scan at most SCAN_CHARS of them
-                text = st.arguments[:SCAN_CHARS]
+            else:  # all of it: a cap would let a long argument hide a denied path at its end
                 for rx in self.deny:
-                    if rx.search(text):
+                    if rx.search(st.arguments):
                         out.append((st.index, f"{where}: {st.tool} arguments match denied pattern {rx.pattern!r}"))
                         break
             rule = self.tools.get(st.tool)
@@ -165,6 +169,46 @@ class Policy:
             elif t.termination and t.termination != "completed":
                 out.append((None, f"run incomplete: {t.termination}"))
         return out
+
+
+_REPEATS = {_c.MAX_REPEAT, _c.MIN_REPEAT, getattr(_c, "POSSESSIVE_REPEAT", _c.MAX_REPEAT)}
+
+
+def _has_choice(sub: Any) -> bool:
+    """The parsed pattern repeats or branches somewhere (so repeating it can match one text many ways)."""
+    for op, av in sub:
+        if (op in _REPEATS and av[0] != av[1]) or op is _c.BRANCH:  # a variable count is a choice too
+            return True
+        if op is _c.SUBPATTERN and _has_choice(av[-1]):
+            return True
+        if op in (_c.ASSERT, _c.ASSERT_NOT) and _has_choice(av[1]):
+            return True
+    return False
+
+
+def _risky(sub: Any) -> bool:
+    for op, av in sub:
+        if op in _REPEATS:
+            if av[1] > 1 and _has_choice(av[2]):
+                return True
+            if _risky(av[2]):
+                return True
+        elif op is _c.SUBPATTERN and _risky(av[-1]):
+            return True
+        elif op is _c.BRANCH and any(_risky(alt) for alt in av[1]):
+            return True
+        elif op in (_c.ASSERT, _c.ASSERT_NOT) and _risky(av[1]):
+            return True
+    return False
+
+
+def _can_backtrack_exponentially(pattern: str) -> bool:
+    """A repeated group whose body repeats or branches, e.g. (a+)+, (a|aa)+, ((a)+)+. Character classes and
+    single repeats (``[ab]+``, ``\\w+``, ``(ab)+``) are fine. Unparseable patterns are left to re.compile."""
+    try:
+        return _risky(_parser.parse(pattern, re.I))
+    except Exception:
+        return False
 
 
 def _val(v: Any, quote: bool = False, n: int = 120) -> str:

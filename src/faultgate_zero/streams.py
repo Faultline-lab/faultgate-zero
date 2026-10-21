@@ -53,6 +53,17 @@ class Recorder:
         self.call.error = exc
         self.done()
 
+    def opened(self, inner: Any) -> None:
+        """A manager opened ``inner``. Errors from the raw SDK stream it reads are this call's errors too."""
+        self.stream = inner
+        raw = getattr(inner, "_raw_stream", None)
+        if raw is not None and hasattr(raw, "__dict__"):
+            try:
+                raw.__class__ = _subclass(type(raw))
+                raw.__dict__["_fgz_rec"] = ErrorsOnly(self)
+            except Exception as exc:
+                self.run.mark_incomplete(f"{self.call.adapter} stream", exc)
+
     def done(self) -> None:
         if self.finished:
             return
@@ -176,7 +187,7 @@ def _methods(base: type) -> dict[str, Any]:
             inner = base.__enter__(self)
             rec = _rec(self)
             if rec is not None and inner is not self:  # a manager: remember the stream it opened
-                rec.stream = inner
+                rec.opened(inner)
             return inner
         ns["__enter__"] = __enter__
     if hasattr(base, "__exit__"):
@@ -184,14 +195,14 @@ def _methods(base: type) -> dict[str, Any]:
             try:
                 return base.__exit__(self, *exc)
             finally:
-                _done(self)
+                _exited(self, base, exc[1] if len(exc) > 1 else None)
         ns["__exit__"] = __exit__
     if hasattr(base, "__aenter__"):
         async def __aenter__(self):  # type: ignore[no-untyped-def]
             inner = await base.__aenter__(self)
             rec = _rec(self)
             if rec is not None and inner is not self:
-                rec.stream = inner
+                rec.opened(inner)
             return inner
         ns["__aenter__"] = __aenter__
     if hasattr(base, "__aexit__"):
@@ -199,9 +210,40 @@ def _methods(base: type) -> dict[str, Any]:
             try:
                 return await base.__aexit__(self, *exc)
             finally:
-                _done(self)
+                _exited(self, base, exc[1] if len(exc) > 1 else None)
         ns["__aexit__"] = __aexit__
     return ns
+
+
+def _exited(self: Any, base: type, exc: BaseException | None) -> None:
+    """A context exit: an SDK exception leaving the block is the model call's error (an exception from
+    the agent's own code inside the block is not)."""
+    rec = _rec(self)
+    if rec is None:
+        return
+    sdk = base.__module__.split(".")[0]
+    if exc is not None and type(exc).__module__.split(".")[0] == sdk:
+        rec.fail(exc)
+    else:
+        rec.done()
+
+
+class ErrorsOnly:
+    """Recorder for a stream another recorder assembles (the raw stream inside ``messages.stream()``):
+    it only passes on an error raised while the raw stream is read."""
+
+    def __init__(self, owner: Recorder) -> None:
+        self.owner = owner
+        self.iterating = False
+
+    def feed(self, item: Any) -> None:
+        pass
+
+    def done(self) -> None:
+        pass
+
+    def fail(self, exc: BaseException) -> None:
+        self.owner.fail(exc)
 
 
 def _subclass(cls: type) -> type:
@@ -307,13 +349,6 @@ class AnthropicEvents:
                 b["text"] = (b.get("text") or "") + d.get("text", "")
             elif d.get("type") == "input_json_delta":
                 self.json[i] = self.json.get(i, "") + d.get("partial_json", "")
-        elif t == "content_block_stop":
-            i = e.get("index", 0)
-            if i in self.json:
-                try:
-                    self.blocks[i]["input"] = json.loads(self.json[i] or "{}")
-                except ValueError:
-                    self.blocks[i]["input"] = self.json[i]
         elif t == "message_delta":
             d = e.get("delta") or {}
             if d.get("stop_reason"):
@@ -322,14 +357,18 @@ class AnthropicEvents:
                 self.msg["usage"] = {**(self.msg.get("usage") or {}), **{k: v for k, v in e["usage"].items() if v is not None}}
 
     def result(self) -> dict[str, Any]:
-        for i, buf in self.json.items():  # a stream cut before content_block_stop
-            b = self.blocks.get(i)
-            if b is not None and "input" not in b:
+        """The message so far. Streamed tool arguments replace the ``input: {}`` the block started with;
+        arguments cut off mid-stream stay as their raw text, so deny patterns still see them."""
+        content = []
+        for i in sorted(self.blocks):
+            b = dict(self.blocks[i])
+            if i in self.json:
                 try:
-                    b["input"] = json.loads(buf or "{}")
+                    b["input"] = json.loads(self.json[i] or "{}")
                 except ValueError:
-                    b["input"] = buf
-        return {**self.msg, "content": [self.blocks[i] for i in sorted(self.blocks)]}
+                    b["input"] = self.json[i]
+            content.append(b)
+        return {**self.msg, "content": content}
 
 
 class ResponsesEvents:

@@ -167,10 +167,17 @@ def test_install_patches_on_import_without_importing(tmp_path, monkeypatch):
 
 # 9. no regex in the hot path can be made slow by model-written arguments
 
-def test_nested_quantifier_deny_pattern_is_rejected():
-    with pytest.raises(PolicyError, match="repeats a repeated group"):
-        Policy.from_dict({"deny_patterns": ["(a+)+$"]})
-    Policy.from_dict({"deny_patterns": [r"\.\./", "(ab)+", r"~/\.ssh"]})
+@pytest.mark.parametrize("pattern", ["(a+)+$", "(a|aa)+$", "(a{1,})+$", "((a)+)+$", r"(\w*)*", "(x|y+){2,}",
+                                     "(?:a?b?)+c"])
+def test_patterns_that_can_backtrack_exponentially_are_rejected(pattern):
+    with pytest.raises(PolicyError, match="repeats a group that itself repeats or has alternatives"):
+        Policy.from_dict({"deny_patterns": [pattern]})
+
+
+def test_ordinary_deny_patterns_are_accepted():
+    from faultgate_zero.policy import DEFAULT_DENY
+
+    Policy.from_dict({"deny_patterns": [*DEFAULT_DENY, "(ab)+", "[ab]+", r"\w+@corp\.com", "(a|b)+", "a{2}", "secret"]})
 
 
 def test_deny_patterns_skip_arguments_over_max_arg_chars():
@@ -197,3 +204,103 @@ def test_pytest_raises_hook_is_restored_when_the_session_ends(pytester):
     pytester.makepyfile("def test_x():\n    pass\n")
     pytester.runpytest().assert_outcomes(passed=1)
     assert not getattr(ExceptionInfo.__dict__["fill_unfilled"], "_fgz", False)
+
+
+# second Codex review (REJECT): six more findings
+
+def test_denied_path_after_long_padding_is_still_found():
+    pol = Policy.from_dict({})
+    t = trace([step("read_file", {"pad": "x" * 150_000, "path": "/etc/passwd"})])
+    assert [m for _, m in pol.violations(t)] == ["step 1: read_file arguments match denied pattern '/etc/passwd'"]
+
+
+def _anthropic_events(events):
+    from fakes.openai_fakes import SSE
+
+    return SSE(events)
+
+
+def test_anthropic_stream_helper_error_swallowed_by_the_agent_fires():
+    import anthropic
+    from fakes import anthropic_fakes as af
+
+    start = {"type": "message_start", "message": {**af.message(), "content": [], "stop_reason": None}}
+    events = _anthropic_events([("message_start", start),
+                                ("error", {"type": "error", "error": {"type": "overloaded_error", "message": "Overloaded"}})])
+
+    def agent():
+        try:
+            with af.client(Script(events)).messages.stream(model="m", max_tokens=5,
+                                                           messages=[{"role": "user", "content": "x"}]) as s:
+                for _ in s.text_stream:
+                    pass
+        except anthropic.APIStatusError:
+            return "Sorry."
+
+    with fz.run() as run:
+        assert agent() == "Sorry."
+    assert run.model_calls[0].error is not None and run.capture_complete
+    assert "unrecovered_model_error" in [v.check for v in run.check().fired]
+
+
+def test_anthropic_stream_cut_before_block_stop_keeps_the_tool_arguments():
+    from fakes import anthropic_fakes as af
+
+    start = {"type": "message_start", "message": {**af.message(), "content": [], "stop_reason": None}}
+    events = _anthropic_events([
+        ("message_start", start),
+        ("content_block_start", {"type": "content_block_start", "index": 0,
+                                 "content_block": {"type": "tool_use", "id": "tu_1", "name": "read_file", "input": {}}}),
+        ("content_block_delta", {"type": "content_block_delta", "index": 0,
+                                 "delta": {"type": "input_json_delta", "partial_json": '{"path": "/etc/'}}),
+        ("content_block_delta", {"type": "content_block_delta", "index": 0,
+                                 "delta": {"type": "input_json_delta", "partial_json": 'passwd"}'}}),
+    ])
+    with fz.run() as run:
+        s = af.client(Script(events)).messages.create(model="m", max_tokens=5, stream=True,
+                                                      messages=[{"role": "user", "content": "x"}])
+        for i, _ in enumerate(s):
+            if i == 3:
+                break  # the agent stops reading before content_block_stop
+    [st] = run.steps
+    assert json.loads(st.arguments) == {"path": "/etc/passwd"}
+    assert "policy" in [v.check for v in run.check().fired]
+
+
+def test_lazy_patch_warning_never_breaks_the_agents_import(tmp_path, monkeypatch):
+    pkg = tmp_path / "fgz_fake_sdk2"
+    pkg.mkdir()
+    (pkg / "__init__.py").write_text("class Client:\n    pass\n")
+    monkeypatch.syspath_prepend(str(tmp_path))
+    t = patch.Target("fgz_fake_sdk2", "Client", "create", False, "openai_chat")  # method does not exist
+    try:
+        patch.install([t])
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            import fgz_fake_sdk2  # must import fine even though patching it warns
+        assert fgz_fake_sdk2.Client
+    finally:
+        patch._pending.pop("fgz_fake_sdk2", None)
+        sys.modules.pop("fgz_fake_sdk2", None)
+
+
+def test_uninstall_during_patching_on_import_is_honoured(tmp_path, monkeypatch):
+    pkg = tmp_path / "fgz_fake_sdk3"
+    pkg.mkdir()
+    (pkg / "__init__.py").write_text("")
+    (pkg / "a.py").write_text("import faultgate_zero.patch as p\np.uninstall()\nclass C:\n    def create(self, **kw):\n        return 1\n")
+    (pkg / "b.py").write_text("class C:\n    def create(self, **kw):\n        return 2\n")
+    monkeypatch.syspath_prepend(str(tmp_path))
+    targets = [patch.Target("fgz_fake_sdk3.a", "C", "create", False, "openai_chat"),
+               patch.Target("fgz_fake_sdk3.b", "C", "create", False, "openai_chat")]
+    try:
+        patch.install(targets)
+        import fgz_fake_sdk3  # patching imports .a, whose code uninstalls: nothing may stay patched
+        import fgz_fake_sdk3.a as a
+        import fgz_fake_sdk3.b as b
+        assert a.C.__dict__["create"] not in patch._wrappers and b.C.__dict__["create"] not in patch._wrappers
+        assert not [p for p in patch.installed() if p.startswith("fgz_fake_sdk3")]
+    finally:
+        for name in ("fgz_fake_sdk3", "fgz_fake_sdk3.a", "fgz_fake_sdk3.b"):
+            sys.modules.pop(name, None)
+        fz.install()
