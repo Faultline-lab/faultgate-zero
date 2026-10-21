@@ -22,27 +22,45 @@ class Recorder:
         self.run, self.call, self._feed, self._result = run, call, feed, result
         self.iterating = False
         self.finished = False
+        self.broken = False
         self.stream: Any = None  # for a manager: the stream its context opened
+        # Until the stream ends, the trace builder asks for what has been read so far: a loop the
+        # agent broke out of and resumed later keeps everything it read.
+        call.pending = self.snapshot
 
     def feed(self, item: Any) -> None:
-        if self.finished:
+        if self.finished or self.broken:
             return
         try:
             self._feed(item)
+            self.call.end_ns = self.run.now()
+            self.run._trace = None
         except Exception as exc:
-            self.finished = True
+            self.broken = True
             self.run.mark_incomplete(f"{self.call.adapter} stream", exc)
+
+    def snapshot(self) -> None:
+        if self.broken:
+            return
+        try:
+            self.call.response = self._result()
+        except Exception as exc:
+            self.broken = True
+            self.run.mark_incomplete(f"{self.call.adapter} stream", exc)
+
+    def fail(self, exc: BaseException) -> None:
+        """The stream raised while being read: that is the model call's error."""
+        self.call.error = exc
+        self.done()
 
     def done(self) -> None:
         if self.finished:
             return
+        self.snapshot()
         self.finished = True
-        try:
-            self.call.response = self._result()
-            self.call.end_ns = self.run.now()
-            self.run._trace = None
-        except Exception as exc:
-            self.run.mark_incomplete(f"{self.call.adapter} stream", exc)
+        self.call.pending = None
+        self.call.end_ns = self.run.now()
+        self.run._trace = None
 
 
 def _rec(obj: Any) -> Recorder | None:
@@ -73,9 +91,15 @@ def _methods(base: type) -> dict[str, Any]:
                 for item in it:
                     rec.feed(item)
                     yield item
+            except GeneratorExit:  # the agent broke out of the loop; it may resume later
+                raise
+            except BaseException as exc:
+                rec.fail(exc)
+                raise
+            else:
+                rec.done()
             finally:
                 rec.iterating = False
-                rec.done()
         ns["__iter__"] = __iter__
     if inspect.isasyncgenfunction(getattr(base, "__aiter__", None)):
         async def __aiter__(self):  # type: ignore[no-untyped-def]
@@ -90,9 +114,15 @@ def _methods(base: type) -> dict[str, Any]:
                 async for item in it:
                     rec.feed(item)
                     yield item
+            except GeneratorExit:
+                raise
+            except BaseException as exc:
+                rec.fail(exc)
+                raise
+            else:
+                rec.done()
             finally:
                 rec.iterating = False
-                rec.done()
         ns["__aiter__"] = __aiter__
     if hasattr(base, "__next__"):
         def __next__(self):  # type: ignore[no-untyped-def]
@@ -101,6 +131,10 @@ def _methods(base: type) -> dict[str, Any]:
                 item = base.__next__(self)
             except StopIteration:
                 _done(self)
+                raise
+            except BaseException as exc:
+                if rec:
+                    rec.fail(exc)
                 raise
             if rec and not rec.iterating:
                 rec.feed(item)
@@ -113,6 +147,10 @@ def _methods(base: type) -> dict[str, Any]:
                 item = await base.__anext__(self)
             except StopAsyncIteration:
                 _done(self)
+                raise
+            except BaseException as exc:
+                if rec:
+                    rec.fail(exc)
                 raise
             if rec and not rec.iterating:
                 rec.feed(item)

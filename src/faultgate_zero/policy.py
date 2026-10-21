@@ -10,6 +10,9 @@ from typing import Any
 from .results import arguments_of, error_of, get_path
 from .trace import Trace
 
+SCAN_CHARS = 100_000  # deny patterns read at most this much of one call's arguments
+# a group with + or * inside, itself followed by + * or {: (a+)+, (\w*)*, (x|y+){2,}
+NESTED_QUANTIFIER = re.compile(r"\((?:[^()\\]|\\.)*[+*](?:[^()\\]|\\.)*\)[+*{]")
 DEFAULT_DENY = (r"\.\./", r"\.\.\\", r"file://", r"~/\.ssh", r"/etc/passwd", r"id_rsa")
 TOP_KEYS = {"allow", "deny_patterns", "max_arg_chars", "max_calls", "require_complete", "tools"}
 TOOL_KEYS = {"max_calls", "limits", "allowed_values", "required_args", "identity_arg", "requires"}
@@ -65,6 +68,10 @@ class Policy:
             pol.allow = _str_list(d["allow"], "allow", fail)
         if "deny_patterns" in d:
             pats = _str_list(d["deny_patterns"], "deny_patterns", fail)
+            slow = next((x for x in pats if NESTED_QUANTIFIER.search(x)), None)
+            if slow is not None:
+                raise fail("deny_patterns", f"{slow!r} repeats a repeated group, which can take exponential time "
+                                            "on long arguments; rewrite it without nesting + or *")
             try:
                 pol.deny = [re.compile(x, re.I) for x in pats]
             except re.error as exc:
@@ -115,12 +122,15 @@ class Policy:
             where = f"step {st.index}"
             if self.allow is not None and st.tool not in self.allow:
                 out.append((st.index, f"{where}: tool {st.tool!r} is not in the allow list"))
-            for rx in self.deny:
-                if rx.search(st.arguments):
-                    out.append((st.index, f"{where}: {st.tool} arguments match denied pattern {rx.pattern!r}"))
-                    break
-            if self.max_arg_chars is not None and len(st.arguments) > self.max_arg_chars:
+            too_long = self.max_arg_chars is not None and len(st.arguments) > self.max_arg_chars
+            if too_long:
                 out.append((st.index, f"{where}: {st.tool} arguments are {len(st.arguments)} chars > max_arg_chars {self.max_arg_chars}"))
+            else:  # the model writes the arguments: scan at most SCAN_CHARS of them
+                text = st.arguments[:SCAN_CHARS]
+                for rx in self.deny:
+                    if rx.search(text):
+                        out.append((st.index, f"{where}: {st.tool} arguments match denied pattern {rx.pattern!r}"))
+                        break
             rule = self.tools.get(st.tool)
             if rule is None:
                 continue
@@ -130,11 +140,11 @@ class Policy:
             for path, mx in rule.limits.items():
                 ok, v = get_path(args, path)
                 if ok and _as_float(v) is not None and _as_float(v) > mx:
-                    out.append((st.index, f"{where}: {st.tool}.{path} {v} > max {_fmt(mx)}"))
+                    out.append((st.index, f"{where}: {st.tool}.{path} {_val(v)} > max {_fmt(mx)}"))
             for path, allowed in rule.allowed_values.items():
                 ok, v = get_path(args, path)
                 if ok and v not in allowed:
-                    out.append((st.index, f"{where}: {st.tool}.{path} {v!r} is not one of {allowed!r}"))
+                    out.append((st.index, f"{where}: {st.tool}.{path} {_val(v, True)} is not one of {_val(allowed, True)}"))
             for path in rule.required_args:
                 if not get_path(args, path)[0]:
                     out.append((st.index, f"{where}: {st.tool} is missing required argument {path!r}"))
@@ -143,7 +153,7 @@ class Policy:
                 if t.user_id is None:
                     out.append((st.index, f"{where}: {st.tool}.{rule.identity_arg}: no user id for identity check (set fz.run(user_id=...))"))
                 elif not ok or str(v) != str(t.user_id):
-                    out.append((st.index, f"{where}: {st.tool}.{rule.identity_arg} {v!r} does not match the run's user id {t.user_id!r}"))
+                    out.append((st.index, f"{where}: {st.tool}.{rule.identity_arg} {_val(v, True)} does not match the run's user id {_val(t.user_id, True)}"))
             for req in rule.requires:
                 if not any(p.tool == req and p.result_seen and error_of(p) is None for p in steps[:i]):
                     out.append((st.index, f"{where}: {st.tool} called before a successful {req}"))
@@ -155,6 +165,12 @@ class Policy:
             elif t.termination and t.termination != "completed":
                 out.append((None, f"run incomplete: {t.termination}"))
         return out
+
+
+def _val(v: Any, quote: bool = False, n: int = 120) -> str:
+    """A value for a reason: model-written values can be any length."""
+    s = repr(v) if quote else str(v)
+    return s if len(s) <= n else s[: n - 1] + "…"
 
 
 def _num(v: Any) -> bool:

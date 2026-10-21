@@ -50,7 +50,7 @@ def test_json_report_schema_and_redaction(tp):
     assert set(doc) == {"tool", "version", "runs", "summary"}
     assert doc["tool"] == "faultgate-zero"
     assert set(doc["runs"][0]) == {"test", "scenario", "steps", "model_calls", "tokens", "latency_ms",
-                                   "capture_complete", "skipped", "verdicts"}
+                                   "capture_complete", "skipped", "checked_by_test", "verdicts"}
     assert doc["summary"] == {"runs": 3, "failed_runs": 2, "skipped_runs": 0, "fired": {"policy": 1, "search_loop": 1}}
     refund = next(x for x in doc["runs"] if x["scenario"] == "refund")
     [pol] = [v for v in refund["verdicts"] if v["check"] == "policy"]

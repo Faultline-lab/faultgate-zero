@@ -32,6 +32,7 @@ class ModelCall:
     start_ns: int = 0
     end_ns: int = 0
     streamed: bool = False
+    pending: Any = None  # a stream still being read: call it to bring ``response`` up to date
 
 
 @dataclass
@@ -79,6 +80,7 @@ class Run:
         self._open_tools: list[ToolCall] = []
         self.capture_errors: list[str] = []
         self.checked = False  # set when the test checks this run itself; the plugin then leaves it alone
+        self.last_result: Any = None
         # Errors that left the agent: caught by pytest.raises, or reaching the frame that opened the run.
         self.expected_errors: list[BaseException] = []
         self.owner_codes: set[Any] = set()
@@ -101,10 +103,19 @@ class Run:
         return not self.capture_errors
 
     def mark_incomplete(self, where: str, exc: BaseException) -> None:
-        msg = f"{where}: {type(exc).__name__}: {exc}"
-        self.capture_errors.append(msg)
-        warnings.warn(f"faultgate-zero: capture incomplete for run {self.name!r} ({msg}); its checks are skipped",
-                      FaultgateZeroWarning, stacklevel=2)
+        """Note a capture problem. Never raises: with ``-W error`` a warning would otherwise stop the
+        agent's own SDK call, which a capture problem must never do."""
+        try:
+            from .runner import default_settings
+
+            mask = default_settings().redact
+            msg = mask(f"{where}: {type(exc).__name__}: {exc}")
+            self.capture_errors.append(msg)
+            warnings.warn(f"faultgate-zero: capture incomplete for run {mask(self.name)!r} ({msg}); its checks are skipped",
+                          FaultgateZeroWarning, stacklevel=2)
+        except Exception:
+            if not self.capture_errors:
+                self.capture_errors.append(f"{where}: capture error")
 
     def open(self) -> Run:
         if self._token is not None:
@@ -180,7 +191,8 @@ class Run:
         if policy is not None and not isinstance(policy, Policy):
             policy = Policy.load(policy)
         self.checked = True
-        return check(self.trace, checks=checks, skip=tuple(skip), policy=policy)
+        self.last_result = check(self.trace, checks=checks, skip=tuple(skip), policy=policy)
+        return self.last_result
 
     @property
     def report(self):

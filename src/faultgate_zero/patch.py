@@ -9,8 +9,11 @@ from __future__ import annotations
 import contextvars
 import functools
 import importlib
+import importlib.abc
 import importlib.util
 import inspect
+import sys
+import threading
 import warnings
 import weakref
 from dataclasses import dataclass
@@ -151,44 +154,109 @@ def _wrap(original: Callable[..., Any], target: Target) -> Callable[..., Any]:
     return wrapper
 
 
+def _patch_one(t: Target) -> list[str]:
+    top = t.module.split(".")[0]
+    try:
+        mod = importlib.import_module(t.module)
+    except Exception as exc:
+        warnings.warn(f"faultgate-zero: cannot import {t.module} ({exc}); its calls are not captured",
+                      FaultgateZeroWarning, stacklevel=3)
+        return []
+    owner = getattr(mod, t.owner, None) if t.owner else mod
+    # getattr_static: the plain function, also when inherited from a base class
+    current = inspect.getattr_static(owner, t.method, None) if owner is not None else None
+    if current is None:
+        warnings.warn(f"faultgate-zero: {t.path} not found in this {top} version; its calls are not captured",
+                      FaultgateZeroWarning, stacklevel=3)
+        return []
+    mine = _ours(current)
+    if mine is not None:
+        if mine._fgz_disabled:
+            mine._fgz_disabled = False
+            _installed.append((owner, t.method, mine))
+        return [t.path]
+    wrapper = _wrap(current, t)
+    wrapper._fgz_inherited = t.method not in owner.__dict__
+    setattr(owner, t.method, wrapper)
+    _installed.append((owner, t.method, wrapper))
+    return [t.path]
+
+
+# SDKs not imported yet are patched the moment the agent's code imports them. install() never imports
+# an SDK itself: importing one can have side effects of its own (LiteLLM fetches a model price list).
+_pending: dict[str, list[Target]] = {}
+
+
+class _PatchingLoader(importlib.abc.Loader):
+    def __init__(self, inner: Any, name: str) -> None:
+        self._inner, self._name = inner, name
+
+    def create_module(self, spec: Any) -> Any:
+        return self._inner.create_module(spec)
+
+    def exec_module(self, module: Any) -> None:
+        self._inner.exec_module(module)
+        for t in _pending.pop(self._name, []):
+            try:
+                _patch_one(t)
+            except Exception as exc:  # never break the agent's import
+                warnings.warn(f"faultgate-zero: could not patch {t.path} ({exc}); its calls are not captured",
+                              FaultgateZeroWarning, stacklevel=2)
+
+    def __getattr__(self, name: str) -> Any:  # resource readers and the rest come from the real loader
+        return getattr(self._inner, name)
+
+
+class _ImportHook(importlib.abc.MetaPathFinder):
+    def __init__(self) -> None:
+        self._busy = threading.local()
+
+    def find_spec(self, name: str, path: Any = None, target: Any = None) -> Any:
+        if name not in _pending or getattr(self._busy, "on", False):
+            return None
+        self._busy.on = True
+        try:
+            spec = None
+            for finder in sys.meta_path:
+                if finder is self or not hasattr(finder, "find_spec"):
+                    continue
+                spec = finder.find_spec(name, path, target)
+                if spec is not None:
+                    break
+        finally:
+            self._busy.on = False
+        if spec is None or spec.loader is None or not hasattr(spec.loader, "exec_module"):
+            return None
+        spec.loader = _PatchingLoader(spec.loader, name)
+        return spec
+
+
+_hook = _ImportHook()
+
+
 def install(targets: list[Target] | None = None) -> list[str]:
-    """Patch every importable SDK method in ``targets``. Returns the patched paths. Safe to call twice."""
-    patched = []
+    """Patch every SDK method in ``targets`` whose SDK is already imported, and the rest as soon as the
+    agent's code imports their SDK. Returns the paths patched now. Safe to call twice."""
+    patched: list[str] = []
     for t in targets if targets is not None else TARGETS:
         top = t.module.split(".")[0]
-        if importlib.util.find_spec(top) is None:
-            continue
-        try:
-            mod = importlib.import_module(t.module)
-        except Exception as exc:
-            warnings.warn(f"faultgate-zero: cannot import {t.module} ({exc}); its calls are not captured",
-                          FaultgateZeroWarning, stacklevel=2)
-            continue
-        owner = getattr(mod, t.owner, None) if t.owner else mod
-        # getattr_static: the plain function, also when inherited from a base class
-        current = inspect.getattr_static(owner, t.method, None) if owner is not None else None
-        if current is None:
-            warnings.warn(f"faultgate-zero: {t.path} not found in this {top} version; its calls are not captured",
-                          FaultgateZeroWarning, stacklevel=2)
-            continue
-        mine = _ours(current)
-        if mine is not None:
-            if mine._fgz_disabled:
-                mine._fgz_disabled = False
-                _installed.append((owner, t.method, mine))
-            patched.append(t.path)
-            continue
-        wrapper = _wrap(current, t)
-        wrapper._fgz_inherited = t.method not in owner.__dict__
-        setattr(owner, t.method, wrapper)
-        _installed.append((owner, t.method, wrapper))
-        patched.append(t.path)
+        if top in sys.modules:
+            patched += _patch_one(t)
+        elif importlib.util.find_spec(top) is not None:  # a top-level find_spec does not import anything
+            waiting = _pending.setdefault(top, [])
+            if t not in waiting:
+                waiting.append(t)
+    if _pending and _hook not in sys.meta_path:
+        sys.meta_path.insert(0, _hook)
     return patched
 
 
 def uninstall() -> None:
     """Restore the methods ``install()`` replaced. A wrapper that another instrumentor wrapped since is
     switched off instead, so their wrapper keeps working."""
+    _pending.clear()
+    if _hook in sys.meta_path:
+        sys.meta_path.remove(_hook)
     while _installed:
         owner, name, wrapper = _installed.pop()
         if owner.__dict__.get(name) is wrapper:

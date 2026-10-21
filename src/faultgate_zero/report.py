@@ -13,15 +13,18 @@ from typing import Any
 from . import __version__
 from .runner import RunResult
 
-RUN_KEYS = ("test", "scenario", "steps", "model_calls", "tokens", "latency_ms", "capture_complete", "skipped", "verdicts")
+RUN_KEYS = ("test", "scenario", "steps", "model_calls", "tokens", "latency_ms", "capture_complete", "skipped",
+            "checked_by_test", "verdicts")
 
 
-def entry(test: str, result: RunResult, test_passed: bool) -> dict[str, Any]:
+def entry(test: str, result: RunResult, test_passed: bool, checked_by_test: bool = False) -> dict[str, Any]:
+    """Test ids and run names are masked like reasons: parametrize ids and run names can carry data."""
     t = result.trace
     u = t.usage
     return {
-        "test": test,
-        "scenario": t.scenario,
+        "test": result.mask(test),
+        "scenario": result.scenario,
+        "checked_by_test": checked_by_test,
         "steps": len(t.steps),
         "model_calls": len(t.model_calls),
         "tokens": {"input": u.get("input_tokens"), "output": u.get("output_tokens")},
@@ -37,7 +40,7 @@ def entry(test: str, result: RunResult, test_passed: bool) -> dict[str, Any]:
 
 
 def summary(entries: list[dict[str, Any]]) -> dict[str, Any]:
-    failed = [e for e in entries if e["_fired"]]
+    failed = [e for e in entries if e["_fired"] and not e.get("checked_by_test")]
     return {"runs": len(entries), "failed_runs": len(failed),
             "skipped_runs": sum(1 for e in entries if e["skipped"]),
             "fired": dict(sorted(Counter(c for e in failed for c in e["_fired"]).items()))}
@@ -61,7 +64,7 @@ def markdown(entries: list[dict[str, Any]]) -> str:
     lines = ["## faultgate-zero", "",
              f"**{s['runs']} runs checked, {s['failed_runs']} with failures**"
              + (f", {s['skipped_runs']} skipped (capture incomplete)" if s["skipped_runs"] else ""), ""]
-    rows = [(e, v) for e in entries for v in e["verdicts"] if v["fired"]]
+    rows = [(e, v) for e in entries if not e.get("checked_by_test") for v in e["verdicts"] if v["fired"]]
     if not rows:
         lines.append("All checked runs are clean.")
         return "\n".join(lines) + "\n"

@@ -53,8 +53,11 @@ def test_repeated_call_counts_argument_order_and_spacing_as_identical():
     assert repeated_call(t, O).fired
 
 
-def test_repeated_call_fires_when_the_third_result_was_never_seen():
-    t = trace([step("f", {"a": 1}, "x")] * 2 + [step("f", {"a": 1}, None)], answer=None)
+def test_repeated_call_needs_three_seen_identical_results():
+    # spec v1.1: all qualifying calls returned the same result; an unseen result is not the same result
+    t = trace([step("f", {"a": 1}, "queued")] * 2 + [step("f", {"a": 1}, None)], answer=None)
+    assert not repeated_call(t, O).fired
+    t = trace([step("f", {"a": 1}, "queued")] * 3 + [step("f", {"a": 1}, None)], answer=None)
     assert repeated_call(t, O).fired
 
 

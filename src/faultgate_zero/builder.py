@@ -35,6 +35,8 @@ def build_trace(run: Run) -> Trace:
         attrs: dict[str, Any] = {"gen_ai.operation.name": CHAT, "gen_ai.provider.name": call.provider,
                                  "gen_ai.request.model": call.model or None}
         try:
+            if call.pending is not None:
+                call.pending()
             attrs.update(adapters.get(call.adapter).normalise(call))
         except Exception as exc:
             run.mark_incomplete(f"{call.adapter}.normalise", exc)

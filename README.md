@@ -189,7 +189,7 @@ Per test:
 
 | Option | Writes |
 |---|---|
-| `--fgz-json PATH` | One JSON report: `{"tool", "version", "runs": [{"test", "scenario", "steps", "model_calls", "tokens", "latency_ms", "capture_complete", "skipped", "verdicts": [{"check", "fired", "reason", "step"}]}], "summary": {"runs", "failed_runs", "skipped_runs", "fired"}}`. |
+| `--fgz-json PATH` | One JSON report: `{"tool", "version", "runs": [{"test", "scenario", "steps", "model_calls", "tokens", "latency_ms", "capture_complete", "skipped", "checked_by_test", "verdicts": [{"check", "fired", "reason", "step"}]}], "summary": {"runs", "failed_runs", "skipped_runs", "fired"}}`. Test ids, run names and reasons are masked. A run the test checked itself is listed with `checked_by_test: true` and does not count as a failure. |
 | `--fgz-markdown PATH` | A table of failed runs, for `$GITHUB_STEP_SUMMARY`. |
 | `--fgz-export-otlp PATH` | The captured runs as OTLP/JSON with OpenTelemetry GenAI attributes. **Contains raw prompts, answers and tool payloads** (not redacted). `faultgate_zero.otlp.load_otlp(PATH)` reads it back. |
 

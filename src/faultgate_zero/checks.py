@@ -69,11 +69,12 @@ def repeated_call(t: Trace, o: Options) -> Verdict:
     for (tool, args), calls in groups.items():
         if len(calls) < o.repeat_threshold:
             continue
-        seen = [c.result for c in calls if c.result_seen]
-        if len(seen) >= o.repeat_threshold - 1 and len(set(seen)) == 1:
+        seen = [c for c in calls if c.result_seen]  # an unseen result is not "the same result"
+        if len(seen) >= o.repeat_threshold and len({c.result for c in seen}) == 1:
+            at = seen[o.repeat_threshold - 1].index
             return Verdict("repeated_call", True,
-                           f"step {calls[o.repeat_threshold - 1].index}: {tool} called {len(calls)}x with identical "
-                           f"arguments {_short(args)} and identical results", calls[o.repeat_threshold - 1].index)
+                           f"step {at}: {tool} called {len(calls)}x with identical "
+                           f"arguments {_short(args)} and identical results", at)
     return Verdict("repeated_call", False, "no identical repeated calls")
 
 

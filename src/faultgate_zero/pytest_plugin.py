@@ -47,13 +47,21 @@ def pytest_addoption(parser: pytest.Parser) -> None:
                 help="write captured runs as OTLP/JSON. Contains raw prompts, answers and tool payloads.")
 
 
+_raises_users = 0  # sessions using the hook (pytester runs sessions inside a session)
+
+
 def _installed_raises_hook() -> None:
     """Note every exception ``pytest.raises`` catches, so an error the test expected is not reported as
-    one the agent swallowed. ``ExceptionInfo.fill_unfilled`` is where both raises forms store it."""
+    one the agent swallowed. ``ExceptionInfo.fill_unfilled`` is where both raises forms store it.
+    Restored by ``_removed_raises_hook`` when the last session using it ends."""
+    global _raises_users
     from _pytest._code.code import ExceptionInfo
 
     original = ExceptionInfo.__dict__.get("fill_unfilled")
-    if original is None or getattr(original, "_fgz", False):
+    if original is None:
+        return
+    _raises_users += 1
+    if getattr(original, "_fgz", False):
         return
 
     def fill_unfilled(self, exc_info):  # type: ignore[no-untyped-def]
@@ -64,7 +72,20 @@ def _installed_raises_hook() -> None:
         return original(self, exc_info)
 
     fill_unfilled._fgz = True  # type: ignore[attr-defined]
+    fill_unfilled._fgz_original = original  # type: ignore[attr-defined]
     ExceptionInfo.fill_unfilled = fill_unfilled  # type: ignore[method-assign]
+
+
+def _removed_raises_hook() -> None:
+    global _raises_users
+    from _pytest._code.code import ExceptionInfo
+
+    if _raises_users == 0:
+        return
+    _raises_users -= 1
+    current = ExceptionInfo.__dict__.get("fill_unfilled")
+    if _raises_users == 0 and getattr(current, "_fgz", False):  # someone else's patch on top stays
+        ExceptionInfo.fill_unfilled = current._fgz_original  # type: ignore[method-assign]
 
 
 def pytest_configure(config: pytest.Config) -> None:
@@ -96,8 +117,11 @@ def _abs(path: str | None, base) -> str | None:
 
 def pytest_unconfigure(config: pytest.Config) -> None:
     state = config.stash.get(_STATE, None)
+    cfg = config.stash.get(_CFG, None)
     if state is not None:
         recorder.remove_listener(state.on_close)
+    if cfg is not None and cfg.mode != "off":
+        _removed_raises_hook()
     runner.set_default_settings(runner.Settings())
 
 
@@ -129,6 +153,8 @@ def pytest_runtest_call(item: pytest.Item):
     if fn is not None:
         run.owner_codes.add(getattr(inspect.unwrap(fn), "__code__", None))
     state.collecting = runs
+    session_settings = runner.default_settings()
+    runner.set_default_settings(icfg.settings)  # run.check() inside the test honours the test's marker
     run.open()
     exc: BaseException | None = None
     try:
@@ -139,6 +165,7 @@ def pytest_runtest_call(item: pytest.Item):
     finally:
         run.close(exc)
         state.collecting = None
+        runner.set_default_settings(session_settings)
 
 
 @pytest.hookimpl(wrapper=True)
@@ -159,8 +186,11 @@ def pytest_runtest_makereport(item: pytest.Item, call: pytest.CallInfo):
             continue
         if export:
             state.spans += otlp.spans_of(r.trace)
-        if not r.checked:
-            checked.append(runner.check(r.trace, settings))
+        if r.checked:  # the test judged this run itself: report it, never change the outcome
+            if r.last_result is not None:
+                state.entries.append(rpt.entry(item.nodeid, r.last_result, report.passed, checked_by_test=True))
+            continue
+        checked.append(runner.check(r.trace, settings))
     fired = [res for res in checked if res.fired]
     if fired:
         text = "\n\n".join(res.summary() for res in fired) + "\n" + HINT
@@ -210,7 +240,7 @@ def pytest_terminal_summary(terminalreporter, exitstatus: int, config: pytest.Co
     if cfg.mode == "off":
         tr.write_line("faultgate-zero: off")
         return
-    warned = [e for e in state.entries if e["_fired"] and e["_test_passed"]]
+    warned = [e for e in state.entries if e["_fired"] and e["_test_passed"] and not e.get("checked_by_test")]
     if warned:
         tr.write_sep("-", "faultgate-zero warnings")
         for e in warned:

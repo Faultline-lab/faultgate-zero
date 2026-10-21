@@ -151,6 +151,8 @@ class Trace:
             if cid and cid in by_id:
                 st = by_id[cid]
                 st.result, st.is_error, st.result_seen, st.span_id = result, s.error, True, s.span_id
+                if "gen_ai.tool.call.arguments" in s.attrs:  # what ran, not what the model proposed
+                    st.arguments = canonical_args(s.attrs["gen_ai.tool.call.arguments"])
                 st.escaped = bool(s.attrs.get("faultgate.error_escaped"))
                 continue
             st = Step(0, str(s.attrs.get("gen_ai.tool.name", s.name)), cid,

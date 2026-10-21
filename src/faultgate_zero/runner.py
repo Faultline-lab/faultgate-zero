@@ -44,6 +44,11 @@ class RunResult:
     trace: Trace
     verdicts: list[Verdict]
     skipped: str | None = None
+    mask: Callable[[str], str] = _redact.builtin  # applied to the run's name wherever it is shown
+
+    @property
+    def scenario(self) -> str:
+        return self.mask(self.trace.scenario)
 
     @property
     def fired(self) -> list[Verdict]:
@@ -57,11 +62,11 @@ class RunResult:
         t = self.trace
         head = f"{len(t.steps)} steps, {len(t.model_calls)} model calls"
         if self.skipped:
-            return f"faultgate-zero: checks skipped on run {t.scenario!r} ({self.skipped})"
+            return f"faultgate-zero: checks skipped on run {self.scenario!r} ({self.skipped})"
         if not self.fired:
-            return f"faultgate-zero: run {t.scenario!r} is clean ({head})"
+            return f"faultgate-zero: run {self.scenario!r} is clean ({head})"
         n = len(self.fired)
-        lines = [f"faultgate-zero: {n} check{'s' if n > 1 else ''} fired on run {t.scenario!r} ({head})"]
+        lines = [f"faultgate-zero: {n} check{'s' if n > 1 else ''} fired on run {self.scenario!r} ({head})"]
         width = max(len(v.check) for v in self.fired)
         for v in self.fired:
             for j, part in enumerate(v.reason.split("; ") if v.check == "policy" else [v.reason]):
@@ -77,6 +82,6 @@ def check(trace: Trace, settings: Settings | None = None, *, checks: str | list[
         resolve(list(skip))  # unknown names are a usage error, not a silent no-op
     names = tuple(n for n in names if n not in set(skip))
     if not trace.capture_complete:
-        return RunResult(trace, [], skipped="capture incomplete")
+        return RunResult(trace, [], skipped="capture incomplete", mask=s.redact)
     verdicts = run_checks(trace, names, policy or s.policy, s.options)
-    return RunResult(trace, [replace(v, reason=s.redact(v.reason)) for v in verdicts])
+    return RunResult(trace, [replace(v, reason=s.redact(v.reason)) for v in verdicts], mask=s.redact)
