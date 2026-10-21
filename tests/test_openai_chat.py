@@ -113,3 +113,10 @@ def test_messages_list_mutated_after_the_call_does_not_change_the_record():
         client(script).chat.completions.create(model="m", messages=msgs)
         msgs.append({"role": "user", "content": "later"})
     assert len(run.model_calls[0].request["messages"]) == 1
+
+
+def test_text_parts_with_a_content_key_are_kept():
+    from faultgate_zero.adapters.openai_chat import _message
+
+    m = _message({"role": "user", "content": [{"type": "text", "content": "from an adapter"}]})
+    assert m["parts"] == [{"type": "text", "content": "from an adapter"}]

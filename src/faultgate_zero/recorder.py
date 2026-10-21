@@ -116,7 +116,7 @@ class Run:
     def close(self, exc: BaseException | None = None) -> None:
         if self._token is None:
             return
-        if isinstance(exc, Exception):
+        if exc is not None:  # BaseException too: a cancelled or timed-out run did not complete
             self.error = exc
         self.end_ns = self.now()
         try:

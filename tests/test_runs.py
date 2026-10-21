@@ -85,3 +85,23 @@ def test_overhead_of_capture_and_build_is_under_2ms_per_call():
     per_call_ms = (time.perf_counter() - t0) * 1000 / n
     assert len(steps) == n
     assert per_call_ms < 2.0, per_call_ms
+
+
+def test_cancelled_or_timed_out_run_is_not_completed():
+    async def slow_agent():
+        async with fz.run("slow") as run:
+            holder.append(run)
+            await asyncio.sleep(10)
+
+    holder = []
+
+    async def main():
+        try:
+            await asyncio.wait_for(slow_agent(), timeout=0.01)
+        except asyncio.TimeoutError:
+            pass
+
+    asyncio.run(main())
+    t = holder[0].trace
+    assert t.termination.startswith("error: CancelledError")
+    assert t.root.error

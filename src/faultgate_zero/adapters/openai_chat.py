@@ -66,7 +66,7 @@ def _message(m: Any) -> dict[str, Any]:
         for p in content:
             p = as_dict(p)
             if p.get("type") == "text":
-                parts.append(text_part(p.get("text", "")))
+                parts.append(text_part(p.get("text", p.get("content", ""))))
             elif p.get("type"):
                 parts.append({"type": str(p["type"])})
     if d.get("refusal"):

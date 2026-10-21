@@ -138,7 +138,8 @@ def install(targets: list[Target] | None = None) -> list[str]:
                           FaultgateZeroWarning, stacklevel=2)
             continue
         owner = getattr(mod, t.owner, None)
-        current = getattr(owner, "__dict__", {}).get(t.method) if owner is not None else None
+        # getattr_static: the plain function, also when inherited from a base class
+        current = inspect.getattr_static(owner, t.method, None) if owner is not None else None
         if current is None:
             warnings.warn(f"faultgate-zero: {t.path} not found in this {top} version; its calls are not captured",
                           FaultgateZeroWarning, stacklevel=2)
@@ -151,6 +152,7 @@ def install(targets: list[Target] | None = None) -> list[str]:
             patched.append(t.path)
             continue
         wrapper = _wrap(current, t)
+        wrapper._fgz_inherited = t.method not in owner.__dict__
         setattr(owner, t.method, wrapper)
         _installed.append((owner, t.method, wrapper))
         patched.append(t.path)
@@ -163,7 +165,10 @@ def uninstall() -> None:
     while _installed:
         owner, name, wrapper = _installed.pop()
         if owner.__dict__.get(name) is wrapper:
-            setattr(owner, name, wrapper._fgz_original)
+            if getattr(wrapper, "_fgz_inherited", False):
+                delattr(owner, name)  # the base class's method shows through again
+            else:
+                setattr(owner, name, wrapper._fgz_original)
         else:
             wrapper._fgz_disabled = True
 

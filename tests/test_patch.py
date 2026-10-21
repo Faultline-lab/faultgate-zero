@@ -170,3 +170,31 @@ def test_records_only_inside_a_run(dummy):
     with fz.run() as run:
         Client().create()
     assert len(run.model_calls) == 1
+
+
+def test_inherited_method_is_patched_and_restored():
+    mod = types.ModuleType("fgz_dummy_inherit")
+    mod.__spec__ = importlib.machinery.ModuleSpec("fgz_dummy_inherit", None)
+
+    class Base:
+        def create(self, **kw):
+            return SENTINEL
+
+    class Child(Base):
+        pass
+
+    mod.Child = Child
+    sys.modules["fgz_dummy_inherit"] = mod
+    try:
+        t = [Target("fgz_dummy_inherit", "Child", "create", False, "openai_chat")]
+        assert patch.install(t) == [t[0].path]
+        with fz.run() as run:
+            assert Child().create() is SENTINEL
+        assert len(run.model_calls) == 1
+        for entry in list(patch._installed):
+            if entry[0] is not Child:
+                patch._installed.remove(entry)
+        patch.uninstall()
+        assert "create" not in Child.__dict__ and Child.create is Base.create
+    finally:
+        del sys.modules["fgz_dummy_inherit"]
