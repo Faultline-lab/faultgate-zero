@@ -31,6 +31,9 @@ What faultgate-zero does not do, or does imperfectly, as of 0.1.0 (unreleased).
   the fallback is the intended design.
 - **Plain-text errors are not recognised** unless they start with `Error:`, `Exception:` or a
   traceback, or the tool result sets an error flag or an `error` field.
+- **The answer is the model's text.** An agent that finishes by calling a tool (a `submit_answer` or
+  `final_output` tool) has no text answer, so the policy's `require_complete` reports "no final
+  answer" for it. Leave `require_complete` off for such agents.
 - **No golden answers and no LLM judge.** Answer correctness is left to your own asserts.
 
 ## Reports
