@@ -5,13 +5,23 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "faultgate-zero"
 version = "0.0.0"
-description = "Agent failure checks inside your existing pytest tests (placeholder; first release 0.1.0)."
+description = "Agent failure checks inside your existing pytest tests: loops, repeated calls, unrecovered errors, token cutoffs and policy breaks."
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]
 requires-python = ">=3.11"
 authors = [{ name = "Faultline-lab" }]
-classifiers = ["Development Status :: 1 - Planning", "Framework :: Pytest", "Programming Language :: Python :: 3"]
+classifiers = ["Development Status :: 3 - Alpha", "Framework :: Pytest", "Programming Language :: Python :: 3"]
+dependencies = ["pytest>=8"]
+
+[project.optional-dependencies]
+dev = ["openai>=2", "anthropic>=0.40", "pytest-xdist>=3"]
+
+[project.entry-points.pytest11]
+faultgate_zero = "faultgate_zero.pytest_plugin"
 
 [project.urls]
 Homepage = "https://github.com/Faultline-lab/faultgate-zero"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
