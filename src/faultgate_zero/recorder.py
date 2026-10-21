@@ -155,6 +155,29 @@ class Run:
     def steps(self):
         return self.trace.steps
 
+    def check(self, *, checks: Any = None, skip: Any = (), policy: Any = None):
+        """Run the checks on this run now. ``policy`` may be a Policy or a path to a policy file."""
+        from .policy import Policy
+        from .runner import check
+
+        if policy is not None and not isinstance(policy, Policy):
+            policy = Policy.load(policy)
+        return check(self.trace, checks=checks, skip=tuple(skip), policy=policy)
+
+    @property
+    def report(self):
+        """The checks' result with the session's settings (a ``RunResult``: ``passed``, ``fired``, ``verdicts``)."""
+        return self.check()
+
+    def assert_clean(self, *, checks: Any = None, skip: Any = (), policy: Any = None):
+        """Raise ``AgentCheckFailed`` with step-level reasons if any check fired; return the result otherwise."""
+        from .runner import AgentCheckFailed
+
+        result = self.check(checks=checks, skip=skip, policy=policy)
+        if not result.passed:
+            raise AgentCheckFailed(result)
+        return result
+
     def __repr__(self) -> str:
         return f"<faultgate_zero.Run {self.name!r} model_calls={len(self.model_calls)} tool_calls={len(self.tool_calls)}>"
 

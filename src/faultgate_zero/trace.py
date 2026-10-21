@@ -63,7 +63,7 @@ class Trace:
 
     @property
     def model_calls(self) -> list[Span]:
-        return [s for s in self.spans if s.operation == CHAT]
+        return sorted((s for s in self.spans if s.operation == CHAT), key=lambda s: s.start_ns)
 
     @property
     def prompt(self) -> str:
