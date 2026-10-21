@@ -78,7 +78,7 @@ def test_overhead_of_capture_and_build_is_under_2ms_per_call():
     t0 = time.perf_counter()
     with fz.run() as run:
         for _ in range(n):
-            call = _start(run, openai_chat, (), {"model": "m", "messages": msgs})
+            call = _start(run, openai_chat, "start", (), {"model": "m", "messages": msgs})
             _end(run, openai_chat, call, resp, None)
     trace = build_trace(run)
     steps = trace.steps

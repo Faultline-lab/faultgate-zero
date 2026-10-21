@@ -18,8 +18,24 @@ def start(args: tuple, kwargs: dict[str, Any]) -> ModelCall:
     )
 
 
+def start_stream_helper(args: tuple, kwargs: dict[str, Any]) -> ModelCall:
+    """``client.messages.stream(...)``: a context manager that streams; same request shape."""
+    call = start(args, kwargs)
+    call.api, call.streamed = "messages.stream", True
+    return call
+
+
 def finish(call: ModelCall, result: Any, run: Run) -> Any:
     call.response = result
+    if call.api == "messages.stream":
+        from ..streams import attach_manager
+
+        return attach_manager(result, run, call, lambda stream: stream.current_message_snapshot if stream else None)
+    if call.streamed and not hasattr(result, "http_response"):
+        from ..streams import AnthropicEvents, attach
+
+        acc = AnthropicEvents()
+        return attach(result, run, call, acc.feed, acc.result)
     return result
 
 

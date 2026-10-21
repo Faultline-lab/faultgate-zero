@@ -22,6 +22,35 @@ def message(text: str | None = None, tool_uses: list[tuple[str, str, Any]] | Non
             "usage": {"input_tokens": usage[0], "output_tokens": usage[1]}}
 
 
+def message_stream(text: str | None = None, tool_uses: list[tuple[str, str, Any]] | None = None,
+                   stop: str | None = None, model: str = "claude-test", usage: tuple[int, int] = (12, 6)):
+    """The same message as ``message(...)`` as Anthropic stream events."""
+    from fakes.openai_fakes import SSE
+
+    full = message(text, tool_uses, stop, model, usage)
+    start = {**full, "content": [], "stop_reason": None, "usage": {"input_tokens": usage[0], "output_tokens": 1}}
+    ev: list = [("message_start", {"type": "message_start", "message": start})]
+    for i, b in enumerate(full["content"]):
+        if b["type"] == "text":
+            ev.append(("content_block_start", {"type": "content_block_start", "index": i,
+                                               "content_block": {"type": "text", "text": ""}}))
+            for j in range(0, len(b["text"]), 4):
+                ev.append(("content_block_delta", {"type": "content_block_delta", "index": i,
+                                                   "delta": {"type": "text_delta", "text": b["text"][j:j + 4]}}))
+        else:
+            ev.append(("content_block_start", {"type": "content_block_start", "index": i,
+                                               "content_block": {**b, "input": {}}}))
+            raw = json.dumps(b["input"])
+            for part in (raw[: len(raw) // 2], raw[len(raw) // 2:]):
+                ev.append(("content_block_delta", {"type": "content_block_delta", "index": i,
+                                                   "delta": {"type": "input_json_delta", "partial_json": part}}))
+        ev.append(("content_block_stop", {"type": "content_block_stop", "index": i}))
+    ev.append(("message_delta", {"type": "message_delta", "delta": {"stop_reason": full["stop_reason"], "stop_sequence": None},
+                                 "usage": {"output_tokens": usage[1]}}))
+    ev.append(("message_stop", {"type": "message_stop"}))
+    return SSE(ev)
+
+
 def client(script: Script) -> anthropic.Anthropic:
     return anthropic.Anthropic(api_key="sk-ant-test", base_url="http://fake.test", max_retries=0,
                                http_client=httpx2.Client(transport=httpx2.MockTransport(script.handler)))

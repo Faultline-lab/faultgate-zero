@@ -19,6 +19,11 @@ def start(args: tuple, kwargs: dict[str, Any]) -> ModelCall:
 
 def finish(call: ModelCall, result: Any, run: Run) -> Any:
     call.response = result
+    if call.streamed and not hasattr(result, "http_response"):
+        from ..streams import ChatChunks, attach
+
+        acc = ChatChunks()
+        return attach(result, run, call, acc.feed, acc.result)
     return result
 
 

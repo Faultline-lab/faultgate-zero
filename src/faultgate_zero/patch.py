@@ -6,6 +6,7 @@ instrumentor's wrapper included); an SDK is patched only if it is importable.
 """
 from __future__ import annotations
 
+import contextvars
 import functools
 import importlib
 import importlib.util
@@ -26,10 +27,11 @@ class Target:
     method: str
     is_async: bool
     adapter: str
+    starter: str = "start"  # the adapter function that builds the ModelCall
 
     @property
     def path(self) -> str:
-        return f"{self.module}.{self.owner}.{self.method}"
+        return ".".join(x for x in (self.module, self.owner, self.method) if x)
 
 
 TARGETS: list[Target] = [
@@ -39,9 +41,25 @@ TARGETS: list[Target] = [
     Target("anthropic.resources.messages", "AsyncMessages", "create", True, "anthropic_messages"),
     Target("anthropic.resources.beta.messages", "Messages", "create", False, "anthropic_messages"),
     Target("anthropic.resources.beta.messages", "AsyncMessages", "create", True, "anthropic_messages"),
+    Target("openai.resources.chat.completions", "Completions", "parse", False, "openai_chat"),
+    Target("openai.resources.chat.completions", "AsyncCompletions", "parse", True, "openai_chat"),
+    Target("openai.resources.responses", "Responses", "create", False, "openai_responses"),
+    Target("openai.resources.responses", "AsyncResponses", "create", True, "openai_responses"),
+    Target("openai.resources.responses", "Responses", "parse", False, "openai_responses"),
+    Target("openai.resources.responses", "AsyncResponses", "parse", True, "openai_responses"),
+    # messages.stream() posts directly instead of calling create(); it returns a context manager
+    Target("anthropic.resources.messages", "Messages", "stream", False, "anthropic_messages", "start_stream_helper"),
+    Target("anthropic.resources.messages", "AsyncMessages", "stream", False, "anthropic_messages", "start_stream_helper"),
+    Target("anthropic.resources.beta.messages", "Messages", "stream", False, "anthropic_messages", "start_stream_helper"),
+    Target("anthropic.resources.beta.messages", "AsyncMessages", "stream", False, "anthropic_messages", "start_stream_helper"),
+    Target("litellm", "", "completion", False, "litellm_completion"),
+    Target("litellm", "", "acompletion", True, "litellm_completion"),
 ]
 
 _installed: list[tuple[Any, str, Callable[..., Any]]] = []
+# Set while a recorded call runs: a patched SDK that call uses underneath (LiteLLM over the OpenAI SDK,
+# parse() over create()) is not recorded a second time. The outermost call wins.
+_in_call: contextvars.ContextVar[bool] = contextvars.ContextVar("faultgate_zero_in_call", default=False)
 # Ours by identity: functools.wraps copies our attributes onto any wrapper put on top of ours, and
 # wrapt-style proxies forward attribute reads, so an attribute check would find their wrapper instead.
 _wrappers: weakref.WeakSet[Callable[..., Any]] = weakref.WeakSet()
@@ -61,9 +79,9 @@ def _ours(fn: Any) -> Callable[..., Any] | None:
     return None
 
 
-def _start(run: Run, adapter: Any, args: tuple, kwargs: dict) -> ModelCall | None:
+def _start(run: Run, adapter: Any, starter: str, args: tuple, kwargs: dict) -> ModelCall | None:
     try:
-        call = adapter.start(args, kwargs)
+        call = getattr(adapter, starter)(args, kwargs)
         call.start_ns = run.now()
         run.model_calls.append(call)
         return call
@@ -88,32 +106,41 @@ def _end(run: Run, adapter: Any, call: ModelCall | None, result: Any, error: Bas
 
 def _wrap(original: Callable[..., Any], target: Target) -> Callable[..., Any]:
     adapter = adapters.get(target.adapter)
+    starter = target.starter
+    # method targets get the SDK resource as args[0]; module functions (litellm) do not
+    skip_self = 1 if target.owner else 0
 
     if target.is_async or inspect.iscoroutinefunction(original):
         @functools.wraps(original)
         async def wrapper(*args: Any, **kwargs: Any) -> Any:
             run = current_run()
-            if run is None or wrapper._fgz_disabled:
+            if run is None or wrapper._fgz_disabled or _in_call.get():
                 return await original(*args, **kwargs)
-            call = _start(run, adapter, args, kwargs)
+            call = _start(run, adapter, starter, args[skip_self:], kwargs)
+            token = _in_call.set(True)
             try:
                 result = await original(*args, **kwargs)
             except BaseException as exc:
                 _end(run, adapter, call, None, exc)
                 raise
+            finally:
+                _in_call.reset(token)
             return _end(run, adapter, call, result, None)
     else:
         @functools.wraps(original)
         def wrapper(*args: Any, **kwargs: Any) -> Any:
             run = current_run()
-            if run is None or wrapper._fgz_disabled:
+            if run is None or wrapper._fgz_disabled or _in_call.get():
                 return original(*args, **kwargs)
-            call = _start(run, adapter, args, kwargs)
+            call = _start(run, adapter, starter, args[skip_self:], kwargs)
+            token = _in_call.set(True)
             try:
                 result = original(*args, **kwargs)
             except BaseException as exc:
                 _end(run, adapter, call, None, exc)
                 raise
+            finally:
+                _in_call.reset(token)
             return _end(run, adapter, call, result, None)
 
     wrapper._fgz_wrapper = True
@@ -137,7 +164,7 @@ def install(targets: list[Target] | None = None) -> list[str]:
             warnings.warn(f"faultgate-zero: cannot import {t.module} ({exc}); its calls are not captured",
                           FaultgateZeroWarning, stacklevel=2)
             continue
-        owner = getattr(mod, t.owner, None)
+        owner = getattr(mod, t.owner, None) if t.owner else mod
         # getattr_static: the plain function, also when inherited from a base class
         current = inspect.getattr_static(owner, t.method, None) if owner is not None else None
         if current is None:
