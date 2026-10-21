@@ -69,8 +69,8 @@ def test_default_deny_patterns_apply_with_no_file():
     t = trace([step("read_file", {"path": "../../etc/passwd"}), step("fetch", {"url": "file:///home/u/.ssh/id_rsa"}),
                step("read_file", {"path": "reports/q3.txt"})])
     assert msgs(t, {}) == [
-        "step 1: read_file arguments match denied pattern '\\\\.\\\\./'",
-        "step 2: fetch arguments match denied pattern 'file://'",
+        "step 1: read_file arguments contain denied text '../'",
+        "step 2: fetch arguments contain denied text 'file://'",
     ]
 
 
@@ -83,7 +83,8 @@ def test_require_complete():
 
 @pytest.mark.parametrize("bad,problem", [
     ({"alow": []}, "policy <dict>: alow: unknown key"),
-    ({"deny_patterns": ["(unclosed"]}, "policy <dict>: deny_patterns: bad regex"),
+    ({"deny_patterns": [""]}, "policy <dict>: deny_patterns: an empty string would deny every call"),
+    ({"deny_patterns": "../"}, "policy <dict>: deny_patterns: must be a list of strings"),
     ({"max_calls": "5"}, "policy <dict>: max_calls: must be a non-negative integer"),
     ({"tools": {"x": {"limits": {"amount": "500"}}}}, "policy <dict>: tools.x.limits: must map argument names to numbers"),
     ({"tools": {"x": {"maxcalls": 1}}}, "policy <dict>: tools.x.maxcalls: unknown key"),

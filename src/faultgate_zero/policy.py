@@ -2,22 +2,17 @@
 from __future__ import annotations
 
 import json
-import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-try:  # the stdlib regex parser (Python 3.11+); used only to vet deny patterns
-    import re._constants as _c
-    import re._parser as _parser
-except ImportError:  # pragma: no cover
-    import sre_constants as _c  # type: ignore[no-redef]
-    import sre_parse as _parser  # type: ignore[no-redef]
-
 from .results import arguments_of, error_of, get_path
 from .trace import Trace
 
-DEFAULT_DENY =(r"\.\./", r"\.\.\\", r"file://", r"~/\.ssh", r"/etc/passwd", r"id_rsa")
+# Denied text is literal and case-insensitive, not regular expressions: a regex run on model-written
+# arguments can be made to take exponential or high-polynomial time, and no static check catches every
+# such pattern. Substring search is linear and exact over the whole argument.
+DEFAULT_DENY = ("../", "..\\", "file://", "~/.ssh", "/etc/passwd", "id_rsa")
 TOP_KEYS = {"allow", "deny_patterns", "max_arg_chars", "max_calls", "require_complete", "tools"}
 TOOL_KEYS = {"max_calls", "limits", "allowed_values", "required_args", "identity_arg", "requires"}
 
@@ -39,7 +34,7 @@ class ToolRule:
 @dataclass
 class Policy:
     allow: list[str] | None = None
-    deny: list[re.Pattern[str]] = field(default_factory=lambda: [re.compile(p, re.I) for p in DEFAULT_DENY])
+    deny: list[str] = field(default_factory=lambda: list(DEFAULT_DENY))
     max_arg_chars: int | None = None
     max_calls: int | None = None
     require_complete: bool = False
@@ -72,15 +67,9 @@ class Policy:
             pol.allow = _str_list(d["allow"], "allow", fail)
         if "deny_patterns" in d:
             pats = _str_list(d["deny_patterns"], "deny_patterns", fail)
-            slow = next((x for x in pats if _can_backtrack_exponentially(x)), None)
-            if slow is not None:
-                raise fail("deny_patterns", f"{slow!r} repeats a group that itself repeats or has alternatives, "
-                                            "which can take exponential time on model-written arguments; "
-                                            "rewrite it without that, e.g. as several simpler patterns")
-            try:
-                pol.deny = [re.compile(x, re.I) for x in pats]
-            except re.error as exc:
-                raise fail("deny_patterns", f"bad regex: {exc}") from None
+            if any(not p for p in pats):
+                raise fail("deny_patterns", "an empty string would deny every call")
+            pol.deny = pats
         for k in ("max_arg_chars", "max_calls"):
             if k in d:
                 setattr(pol, k, _pos_int(d[k], k, fail))
@@ -130,11 +119,11 @@ class Policy:
             too_long = self.max_arg_chars is not None and len(st.arguments) > self.max_arg_chars
             if too_long:
                 out.append((st.index, f"{where}: {st.tool} arguments are {len(st.arguments)} chars > max_arg_chars {self.max_arg_chars}"))
-            else:  # all of it: a cap would let a long argument hide a denied path at its end
-                for rx in self.deny:
-                    if _search(rx, st.arguments):
-                        out.append((st.index, f"{where}: {st.tool} arguments match denied pattern {rx.pattern!r}"))
-                        break
+            else:  # all of it, so padding cannot hide denied text
+                folded = st.arguments.casefold()
+                hit = next((p for p in self.deny if p.casefold() in folded), None)
+                if hit is not None:
+                    out.append((st.index, f"{where}: {st.tool} arguments contain denied text {hit!r}"))
             rule = self.tools.get(st.tool)
             if rule is None:
                 continue
@@ -169,93 +158,6 @@ class Policy:
             elif t.termination and t.termination != "completed":
                 out.append((None, f"run incomplete: {t.termination}"))
         return out
-
-
-_REPEATS = {_c.MAX_REPEAT, _c.MIN_REPEAT, getattr(_c, "POSSESSIVE_REPEAT", _c.MAX_REPEAT)}
-
-
-WINDOW, OVERLAP = 1024, 256
-
-
-def _search(rx: re.Pattern[str], text: str) -> bool:
-    """Search all of ``text``, in overlapping windows when it is long. re.search retries from every start
-    position, so even a non-exponential pattern (``\\w+$``) is quadratic on a long non-matching
-    argument; windows keep the total linear in the argument's length. A match up to OVERLAP characters
-    long is always found; a longer one straddling two windows can be missed."""
-    n = len(text)
-    if n <= WINDOW:
-        return rx.search(text) is not None
-    i = 0
-    while True:
-        end = min(i + WINDOW, n)
-        m = rx.search(text, i, end)
-        # In a window that is not the last, $ and lookaheads see the window's end as the text's end. A
-        # leftmost match touching it is left to the next window, which starts OVERLAP characters earlier:
-        # every match of up to OVERLAP characters starting at or after it lies inside that window.
-        if m is not None and (end == n or m.end() < end):
-            return True
-        if end == n:
-            return False
-        i = end - OVERLAP
-
-
-def _children(av: Any) -> list[Any]:
-    """Every sub-pattern inside a node's argument, whatever the node type (groups, atomic groups,
-    lookarounds, conditionals, repeats, branches)."""
-    if isinstance(av, _parser.SubPattern):
-        return [av]
-    if isinstance(av, (list, tuple)):
-        return [s for x in av for s in _children(x)]
-    return []
-
-
-def _literal_alternatives(av: Any) -> bool:
-    """A branch of plain literal strings with different first characters, e.g. (foo|bar): it can match a
-    given text only one way."""
-    alts = av[1]
-    if not all(alt and all(op is _c.LITERAL for op, _ in alt) for alt in alts):
-        return False
-    # Patterns compile with re.I, whose Unicode folding differs from str.casefold() (dotless i, the Kelvin
-    # sign, long s...). Only ASCII first characters are trusted: two different ASCII letters, ignoring
-    # case, never match the same character. Any non-ASCII first character counts as possibly overlapping.
-    firsts = [chr(alt[0][1]) for alt in alts]
-    if any(ord(ch) > 127 for ch in firsts):
-        return False
-    folded = [ch.lower() for ch in firsts]
-    return len(set(folded)) == len(folded)
-
-
-def _ambiguous(sub: Any) -> bool:
-    """The pattern can match one text in more than one way: a variable-count repeat or a branch, anywhere."""
-    for op, av in sub:
-        if op in _REPEATS and av[0] != av[1]:
-            return True
-        if op is _c.BRANCH and not _literal_alternatives(av):
-            return True
-        if any(_ambiguous(c) for c in _children(av)):
-            return True
-    return False
-
-
-def _risky(sub: Any) -> bool:
-    for op, av in sub:
-        if op in _REPEATS and av[1] > 1 and _ambiguous(av[2]):
-            return True
-        if any(_risky(c) for c in _children(av)):
-            return True
-    return False
-
-
-def _can_backtrack_exponentially(pattern: str) -> bool:
-    """A group repeated more than once whose body can match one text in several ways, e.g. (a+)+,
-    (a|aa)+, ((a)+)+, (?>(a+)+), (?:(a+){1})+, (?:ab?)+. Character classes, single repeats and literal
-    alternatives (``[ab]+``, ``\\w+``, ``(ab)+``, ``(foo|bar)+``) are fine. Unparseable patterns are left
-    to re.compile. Conservative by design: refusing a safe pattern is a clear usage error, accepting an
-    exponential one can hang a test run on a model-written argument."""
-    try:
-        return _risky(_parser.parse(pattern, re.I))
-    except Exception:
-        return False
 
 
 def _val(v: Any, quote: bool = False, n: int = 120) -> str:

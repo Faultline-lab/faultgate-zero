@@ -40,12 +40,11 @@ What faultgate-zero does not do, or does imperfectly, as of 0.1.0 (unreleased).
   not all the calls returned the same result. A poll that never changes state does.
 - **A missing `user_id` fails the identity rule on purpose.** A policy with `identity_arg` cannot be
   satisfied without knowing who the user is; pass `fz.run(user_id=...)`.
-- **Long arguments are scanned in windows.** Arguments over 1,024 characters are searched in
-  overlapping 1,024-character windows (256 characters of overlap), so the time a deny pattern takes
-  grows linearly with the argument, and a denied path is found wherever it sits. A single match longer
-  than 256 characters that straddles two windows can be missed; keep deny patterns short.
-- **Deny patterns are vetted conservatively.** A pattern that repeats a group which itself repeats or
-  branches is refused, including some safe ones such as `(?:ab?)+`. Split it into simpler patterns.
+- **Denied text is literal, not regex.** `deny_patterns` entries are matched as case-insensitive
+  substrings of the arguments' JSON text. Regular expressions were dropped after review showed that
+  no static check keeps every regex fast on model-written arguments. For value rules use
+  `allowed_values`, `limits` and `required_args`. A value the model encodes differently (for example
+  with JSON `\u` escapes) is not decoded before matching.
 - **Plain-text errors are not recognised** unless they start with `Error:`, `Exception:` or a
   traceback, or the tool result sets an error flag or an `error` field.
 - **The answer is the model's text.** An agent that finishes by calling a tool (a `submit_answer` or

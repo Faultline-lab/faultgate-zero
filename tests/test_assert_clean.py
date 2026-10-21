@@ -50,8 +50,8 @@ def test_skip_and_checks_select():
 
 def test_reasons_are_redacted():
     run = refund_agent_run(20)
-    r = run.check(checks="policy", policy=fz.Policy.from_dict({"deny_patterns": ["@example\\.com"]}))
-    assert r.fired[0].reason == "step 4: issue_refund arguments match denied pattern '@example\\\\.com'"
+    r = run.check(checks="policy", policy=fz.Policy.from_dict({"deny_patterns": ["@EXAMPLE.com"]}))
+    assert r.fired[0].reason == "step 4: issue_refund arguments contain denied text '@EXAMPLE.com'"
     run2 = refund_agent_run(20)
     r2 = run2.check(checks="policy", policy=fz.Policy.from_dict(
         {"tools": {"issue_refund": {"allowed_values": {"email": ["ops@corp.com"]}}}}))

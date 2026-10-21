@@ -167,17 +167,8 @@ def test_install_patches_on_import_without_importing(tmp_path, monkeypatch):
 
 # 9. no regex in the hot path can be made slow by model-written arguments
 
-@pytest.mark.parametrize("pattern", ["(a+)+$", "(a|aa)+$", "(a{1,})+$", "((a)+)+$", r"(\w*)*", "(x|y+){2,}",
-                                     "(?:a?b?)+c"])
-def test_patterns_that_can_backtrack_exponentially_are_rejected(pattern):
-    with pytest.raises(PolicyError, match="repeats a group that itself repeats or has alternatives"):
-        Policy.from_dict({"deny_patterns": [pattern]})
 
 
-def test_ordinary_deny_patterns_are_accepted():
-    from faultgate_zero.policy import DEFAULT_DENY
-
-    Policy.from_dict({"deny_patterns": [*DEFAULT_DENY, "(ab)+", "[ab]+", r"\w+@corp\.com", "(a|b)+", "a{2}", "secret"]})
 
 
 def test_deny_patterns_skip_arguments_over_max_arg_chars():
@@ -211,7 +202,7 @@ def test_pytest_raises_hook_is_restored_when_the_session_ends(pytester):
 def test_denied_path_after_long_padding_is_still_found():
     pol = Policy.from_dict({})
     t = trace([step("read_file", {"pad": "x" * 150_000, "path": "/etc/passwd"})])
-    assert [m for _, m in pol.violations(t)] == ["step 1: read_file arguments match denied pattern '/etc/passwd'"]
+    assert [m for _, m in pol.violations(t)] == ["step 1: read_file arguments contain denied text '/etc/passwd'"]
 
 
 def _anthropic_events(events):
@@ -308,21 +299,8 @@ def test_uninstall_during_patching_on_import_is_honoured(tmp_path, monkeypatch):
 
 # third Codex review (REJECT): six more findings
 
-@pytest.mark.parametrize("pattern", ["(?>(a+)+$)", "(?:(a+){1})+$", "(?=(a+)+)x", "(?:ab?)+"])
-def test_vetting_walks_every_node_type(pattern):
-    with pytest.raises(PolicyError, match="repeats a group"):
-        Policy.from_dict({"deny_patterns": [pattern]})
 
 
-def test_literal_alternatives_are_accepted_and_every_accepted_pattern_is_fast():
-    import re as _re
-
-    ok = ["(foo|bar)+", "(fo|fu)+", "(a|b)+", r"(\.\./|\.\.\\)+", "(ab)+", "[ab]+", r"\w+"]
-    Policy.from_dict({"deny_patterns": ok})
-    for p in ok:
-        t0 = time.perf_counter()
-        _re.compile(p, _re.I).search("a" * 20_000 + "!")
-        assert time.perf_counter() - t0 < 0.2, p
 
 
 def _stream_helper_agent(script, aio=False):
@@ -408,43 +386,12 @@ def test_decorated_tool_defaults_are_checked_by_policy():
 
 # third Codex re-review (REJECT): two findings
 
-@pytest.mark.parametrize("pattern", ["(a|AA)+$", "(i|ıı)+$", "(k|KK)+$", "(s|ſſ)+$",
-                                     "(ıı|i)+$"])
-def test_case_insensitive_overlap_in_alternatives_is_refused(pattern):
-    # re.I folds dotless i, the Kelvin sign and long s onto ASCII letters
-    with pytest.raises(PolicyError, match="repeats a group"):
-        Policy.from_dict({"deny_patterns": [pattern]})
 
 
-def test_ascii_literal_alternatives_stay_accepted():
-    import re as _re
-
-    ok = ["(foo|Bar)+", "(ab|cd|ef)+", "(ı|i)+$"]  # single characters become one class: one way to match
-    Policy.from_dict({"deny_patterns": ok})
 
 
-@pytest.mark.parametrize("pattern", ["(ı|i)+$", r"\w+$", "[a-z]+!x", "i+$"])
-def test_quadratic_patterns_stay_bounded_on_long_arguments(pattern):
-    # not exponential, but re.search retries from every start: quadratic on one long argument
-    pol = Policy.from_dict({"deny_patterns": [pattern]})
-    t = trace([step("f", "i" * 100_000 + "!")])
-    t0 = time.perf_counter()
-    pol.violations(t)
-    assert time.perf_counter() - t0 < 1.5, pattern
 
 
-def test_windowed_scan_finds_matches_anywhere_and_respects_end_anchors():
-    from faultgate_zero.policy import OVERLAP, WINDOW, _search
-    import re as _re
-
-    rx = _re.compile("/etc/passwd", _re.I)
-    for at in (0, WINDOW - 5, WINDOW - OVERLAP + 3, 3 * WINDOW + 17, 100_000):
-        text = "x" * at + "/etc/passwd" + "y" * 300
-        assert _search(rx, text), at
-    end = _re.compile(r"secret\}$", _re.I)
-    assert _search(end, "a" * 50_000 + "secret}")          # really at the end
-    assert not _search(end, "secret}" + "a" * 50_000)      # only at a window edge would be a false hit
-    assert not _search(_re.compile(r"x$"), "x" * (WINDOW - 1) + "y" * 50_000)
 
 
 def test_nothing_is_imported_while_the_lock_is_held(monkeypatch):

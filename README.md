@@ -60,7 +60,7 @@ When the test ends, the run is checked. A check that fires fails the test.
 | `unrecovered_tool_error` | yes | A tool call fails (error flag, `Error:` / `Exception:` / traceback result, or an `error` field) and that tool never succeeds later in the run. |
 | `unrecovered_model_error` | yes | A model call raises (outage, rate limit, bad request) and no later model call succeeds, while the agent carries on, e.g. with a fallback message. |
 | `context_overflow` | yes | A model response stops at the token limit (`length`, `max_tokens`, ...) or the provider rejects the prompt as too long. |
-| `policy` | yes | A tool call breaks the policy file (below). With no file, only the built-in denied argument patterns apply (`../`, `file://`, `~/.ssh`, `/etc/passwd`, `id_rsa`). |
+| `policy` | yes | A tool call breaks the policy file (below). With no file, only the built-in denied text applies (`../`, `file://`, `~/.ssh`, `/etc/passwd`, `id_rsa`). |
 | `abstention` | no | The final answer says the information could not be found. Off by default, because many tests expect a correct "not found". |
 
 Each check has clean look-alikes it must not fire on (a retried tool that then succeeds, a poll whose
@@ -118,7 +118,7 @@ Messages and response in OpenAI chat format. Outside a run it does nothing.
 ```json
 {
   "allow": ["verify_identity", "lookup_order", "issue_refund"],
-  "deny_patterns": ["\\.\\./", "file://", "~/\\.ssh"],
+  "deny_patterns": ["../", "file://", "~/.ssh", "DROP TABLE"],
   "max_arg_chars": 4000,
   "max_calls": 20,
   "require_complete": true,
@@ -138,7 +138,7 @@ Messages and response in OpenAI chat format. Outside a run it does nothing.
 | Key | Meaning |
 |---|---|
 | `allow` | Only these tools may be called. |
-| `deny_patterns` | Regexes (case-insensitive) searched in the whole arguments. Replaces the built-in list. A pattern that repeats a group which itself repeats or has alternatives (`(a+)+`, `(a\|aa)+`) is refused: on model-written text it can take exponential time. |
+| `deny_patterns` | Text that must not appear anywhere in a call's arguments: literal and case-insensitive, matched over the whole argument. Replaces the built-in list. Not regular expressions, on purpose: a regex run on model-written arguments can be made to take exponential time. |
 | `max_arg_chars`, `max_calls` | Per run: longest arguments, number of tool calls. |
 | `require_complete` | The run must end with an answer and no escaped exception. |
 | `tools.<name>.max_calls` | Calls of this tool per run. |
@@ -148,7 +148,7 @@ Messages and response in OpenAI chat format. Outside a run it does nothing.
 | `tools.<name>.identity_arg` | This argument must equal the run's `user_id`. |
 | `tools.<name>.requires` | These tools must have succeeded earlier in the run. |
 
-Unknown keys, bad regexes and wrong types stop the test session with a message naming the file, the
+Unknown keys, empty denied text and wrong types stop the test session with a message naming the file, the
 key and the problem.
 
 ## Settings
