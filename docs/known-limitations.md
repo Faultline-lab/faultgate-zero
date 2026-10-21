@@ -29,6 +29,19 @@ What faultgate-zero does not do, or does imperfectly, as of 0.1.0 (unreleased).
 - **A tool error recovered with a different tool** (search A failed, search B worked) still fires
   `unrecovered_tool_error`, because the failing tool never succeeded. Skip the check on that test if
   the fallback is the intended design.
+- **A later successful call to the same tool counts as recovery, whatever its arguments.** If
+  `lookup_order("9999")` fails and `lookup_order("1042")` then succeeds, the first error is treated as
+  recovered. This is what lets a retry with corrected arguments pass; the price is that a failure for
+  one input can be masked by a success for another.
+- **One run per test.** Concurrent sub-tasks (`asyncio.gather`) inside one test share the test's run, so
+  one task's success can mask another's tool error. Give each task its own `fz.run(...)` to check them
+  separately.
+- **Polling that repeats identical results and then succeeds does not fire `repeated_call`**, because
+  not all the calls returned the same result. A poll that never changes state does.
+- **A missing `user_id` fails the identity rule on purpose.** A policy with `identity_arg` cannot be
+  satisfied without knowing who the user is; pass `fz.run(user_id=...)`.
+- **Deny patterns are vetted conservatively.** A pattern that repeats a group which itself repeats or
+  branches is refused, including some safe ones such as `(?:ab?)+`. Split it into simpler patterns.
 - **Plain-text errors are not recognised** unless they start with `Error:`, `Exception:` or a
   traceback, or the tool result sets an error flag or an `error` field.
 - **The answer is the model's text.** An agent that finishes by calling a tool (a `submit_answer` or

@@ -304,3 +304,103 @@ def test_uninstall_during_patching_on_import_is_honoured(tmp_path, monkeypatch):
         for name in ("fgz_fake_sdk3", "fgz_fake_sdk3.a", "fgz_fake_sdk3.b"):
             sys.modules.pop(name, None)
         fz.install()
+
+
+# third Codex review (REJECT): six more findings
+
+@pytest.mark.parametrize("pattern", ["(?>(a+)+$)", "(?:(a+){1})+$", "(?=(a+)+)x", "(?:ab?)+"])
+def test_vetting_walks_every_node_type(pattern):
+    with pytest.raises(PolicyError, match="repeats a group"):
+        Policy.from_dict({"deny_patterns": [pattern]})
+
+
+def test_literal_alternatives_are_accepted_and_every_accepted_pattern_is_fast():
+    import re as _re
+
+    ok = ["(foo|bar)+", "(fo|fu)+", "(a|b)+", r"(\.\./|\.\.\\)+", "(ab)+", "[ab]+", r"\w+"]
+    Policy.from_dict({"deny_patterns": ok})
+    for p in ok:
+        t0 = time.perf_counter()
+        _re.compile(p, _re.I).search("a" * 20_000 + "!")
+        assert time.perf_counter() - t0 < 0.2, p
+
+
+def _stream_helper_agent(script, aio=False):
+    import anthropic
+    from fakes import anthropic_fakes as af
+
+    msgs = [{"role": "user", "content": "x"}]
+    if not aio:
+        try:
+            with af.client(script).messages.stream(model="m", max_tokens=5, messages=msgs) as s:
+                for _ in s.text_stream:
+                    pass
+        except anthropic.APIError:
+            return "Sorry."
+
+    async def run():
+        try:
+            async with af.async_client(script).messages.stream(model="m", max_tokens=5, messages=msgs) as s:
+                async for _ in s.text_stream:
+                    pass
+        except anthropic.APIError:
+            return "Sorry."
+
+    import asyncio
+    return asyncio.run(run())
+
+
+@pytest.mark.parametrize("aio", [False, True])
+def test_stream_helper_http_error_on_open_is_recorded(aio):
+    body = {"type": "error", "error": {"type": "rate_limit_error", "message": "slow down"}}
+    with fz.run() as run:
+        assert _stream_helper_agent(Script((429, body)), aio) == "Sorry."
+    assert run.model_calls[0].error is not None and run.capture_complete
+    assert "unrecovered_model_error" in [v.check for v in run.check().fired]
+
+
+def test_stream_helper_error_before_message_start_keeps_checks_on():
+    events = _anthropic_events([("error", {"type": "error", "error": {"type": "overloaded_error", "message": "Overloaded"}})])
+    with fz.run() as run:
+        assert _stream_helper_agent(Script(events)) == "Sorry."
+    assert run.capture_complete
+    assert "unrecovered_model_error" in [v.check for v in run.check().fired]
+
+
+def test_install_and_import_in_two_threads_do_not_deadlock(tmp_path, monkeypatch):
+    import threading
+
+    pkg = tmp_path / "fgz_fake_sdk4"
+    pkg.mkdir()
+    (pkg / "__init__.py").write_text("import time\ntime.sleep(0.3)\nclass C:\n    def create(self, **kw):\n        return 1\n")
+    monkeypatch.syspath_prepend(str(tmp_path))
+    t = patch.Target("fgz_fake_sdk4", "C", "create", False, "openai_chat")
+    try:
+        patch.install([t])
+        th = threading.Thread(target=lambda: __import__("fgz_fake_sdk4"))
+        th.start()
+        time.sleep(0.1)          # the import is running and holds its module lock
+        patch.install([t])       # must not block on that import while holding faultgate-zero's lock
+        th.join(timeout=5)
+        assert not th.is_alive()
+        import fgz_fake_sdk4
+        assert fgz_fake_sdk4.C.__dict__["create"] in patch._wrappers
+    finally:
+        for entry in list(patch._installed):
+            if getattr(entry[0], "__module__", "") == "fgz_fake_sdk4":
+                patch._installed.remove(entry)
+        patch._pending.pop("fgz_fake_sdk4", None)
+        sys.modules.pop("fgz_fake_sdk4", None)
+
+
+def test_decorated_tool_defaults_are_checked_by_policy():
+    @fz.tool
+    def issue_refund(order_id="1", amount=900, **extra):
+        return {"ok": True}
+
+    with fz.run() as run:
+        issue_refund(note="manual")
+    [st] = run.steps
+    assert json.loads(st.arguments) == {"order_id": "1", "amount": 900, "note": "manual"}
+    pol = Policy.from_dict({"tools": {"issue_refund": {"limits": {"amount": 500}}}})
+    assert run.check(checks="policy", policy=pol).fired[0].reason == "step 1: issue_refund.amount 900 > max 500"

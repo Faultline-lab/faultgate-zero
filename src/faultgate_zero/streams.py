@@ -184,7 +184,11 @@ def _methods(base: type) -> dict[str, Any]:
         ns["close"] = sclose
     if hasattr(base, "__enter__"):
         def __enter__(self):  # type: ignore[no-untyped-def]
-            inner = base.__enter__(self)
+            try:  # a manager sends its request here: an HTTP error is the model call's error
+                inner = base.__enter__(self)
+            except BaseException as exc:
+                _exited(self, base, exc)
+                raise
             rec = _rec(self)
             if rec is not None and inner is not self:  # a manager: remember the stream it opened
                 rec.opened(inner)
@@ -199,7 +203,11 @@ def _methods(base: type) -> dict[str, Any]:
         ns["__exit__"] = __exit__
     if hasattr(base, "__aenter__"):
         async def __aenter__(self):  # type: ignore[no-untyped-def]
-            inner = await base.__aenter__(self)
+            try:
+                inner = await base.__aenter__(self)
+            except BaseException as exc:
+                _exited(self, base, exc)
+                raise
             rec = _rec(self)
             if rec is not None and inner is not self:
                 rec.opened(inner)

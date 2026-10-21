@@ -35,7 +35,16 @@ def _begin(run: Run, name: str, sig: inspect.Signature | None, args: tuple, kwar
     try:
         if sig is not None:
             bound = sig.bind_partial(*args, **kwargs)
-            arguments = {k: v for k, v in bound.arguments.items() if k not in ("self", "cls")}
+            bound.apply_defaults()  # what the call ran with, defaults included: the policy reads these
+            arguments: dict[str, Any] = {}
+            for k, v in bound.arguments.items():
+                kind = sig.parameters[k].kind
+                if k in ("self", "cls"):
+                    continue
+                if kind is inspect.Parameter.VAR_KEYWORD:
+                    arguments.update(v)
+                else:
+                    arguments[k] = v
         else:
             arguments = {"args": list(args), **kwargs}
         tc = ToolCall(name=name, arguments=arguments, call_id=_match_call_id(run, name), start_ns=run.now())

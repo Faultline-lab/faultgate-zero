@@ -30,13 +30,24 @@ def finish(call: ModelCall, result: Any, run: Run) -> Any:
     if call.api == "messages.stream":
         from ..streams import attach_manager
 
-        return attach_manager(result, run, call, lambda stream: stream.current_message_snapshot if stream else None)
+        return attach_manager(result, run, call, _snapshot)
     if call.streamed and not hasattr(result, "http_response"):
         from ..streams import AnthropicEvents, attach
 
         acc = AnthropicEvents()
         return attach(result, run, call, acc.feed, acc.result)
     return result
+
+
+def _snapshot(stream: Any) -> Any:
+    """The message a ``messages.stream()`` stream has read so far; None before ``message_start`` (the SDK
+    asserts there is one, and an error can come first)."""
+    if stream is None:
+        return None
+    try:
+        return stream.current_message_snapshot
+    except Exception:
+        return None
 
 
 def tool_calls(call: ModelCall) -> list[tuple[str, str]]:

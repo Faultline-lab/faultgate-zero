@@ -174,37 +174,53 @@ class Policy:
 _REPEATS = {_c.MAX_REPEAT, _c.MIN_REPEAT, getattr(_c, "POSSESSIVE_REPEAT", _c.MAX_REPEAT)}
 
 
-def _has_choice(sub: Any) -> bool:
-    """The parsed pattern repeats or branches somewhere (so repeating it can match one text many ways)."""
+def _children(av: Any) -> list[Any]:
+    """Every sub-pattern inside a node's argument, whatever the node type (groups, atomic groups,
+    lookarounds, conditionals, repeats, branches)."""
+    if isinstance(av, _parser.SubPattern):
+        return [av]
+    if isinstance(av, (list, tuple)):
+        return [s for x in av for s in _children(x)]
+    return []
+
+
+def _literal_alternatives(av: Any) -> bool:
+    """A branch of plain literal strings with different first characters, e.g. (foo|bar): it can match a
+    given text only one way."""
+    alts = av[1]
+    if not all(alt and all(op is _c.LITERAL for op, _ in alt) for alt in alts):
+        return False
+    firsts = [alt[0][1] for alt in alts]
+    return len(set(firsts)) == len(firsts)
+
+
+def _ambiguous(sub: Any) -> bool:
+    """The pattern can match one text in more than one way: a variable-count repeat or a branch, anywhere."""
     for op, av in sub:
-        if (op in _REPEATS and av[0] != av[1]) or op is _c.BRANCH:  # a variable count is a choice too
+        if op in _REPEATS and av[0] != av[1]:
             return True
-        if op is _c.SUBPATTERN and _has_choice(av[-1]):
+        if op is _c.BRANCH and not _literal_alternatives(av):
             return True
-        if op in (_c.ASSERT, _c.ASSERT_NOT) and _has_choice(av[1]):
+        if any(_ambiguous(c) for c in _children(av)):
             return True
     return False
 
 
 def _risky(sub: Any) -> bool:
     for op, av in sub:
-        if op in _REPEATS:
-            if av[1] > 1 and _has_choice(av[2]):
-                return True
-            if _risky(av[2]):
-                return True
-        elif op is _c.SUBPATTERN and _risky(av[-1]):
+        if op in _REPEATS and av[1] > 1 and _ambiguous(av[2]):
             return True
-        elif op is _c.BRANCH and any(_risky(alt) for alt in av[1]):
-            return True
-        elif op in (_c.ASSERT, _c.ASSERT_NOT) and _risky(av[1]):
+        if any(_risky(c) for c in _children(av)):
             return True
     return False
 
 
 def _can_backtrack_exponentially(pattern: str) -> bool:
-    """A repeated group whose body repeats or branches, e.g. (a+)+, (a|aa)+, ((a)+)+. Character classes and
-    single repeats (``[ab]+``, ``\\w+``, ``(ab)+``) are fine. Unparseable patterns are left to re.compile."""
+    """A group repeated more than once whose body can match one text in several ways, e.g. (a+)+,
+    (a|aa)+, ((a)+)+, (?>(a+)+), (?:(a+){1})+, (?:ab?)+. Character classes, single repeats and literal
+    alternatives (``[ab]+``, ``\\w+``, ``(ab)+``, ``(foo|bar)+``) are fine. Unparseable patterns are left
+    to re.compile. Conservative by design: refusing a safe pattern is a clear usage error, accepting an
+    exponential one can hang a test run on a model-written argument."""
     try:
         return _risky(_parser.parse(pattern, re.I))
     except Exception:
