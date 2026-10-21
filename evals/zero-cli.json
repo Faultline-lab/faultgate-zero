@@ -1,5 +1,5 @@
 {
-  "command": [".venv/Scripts/python", "-m", "pytest", "-p", "no:cacheprovider", "-q", "examples/refund_agent"],
+  "command": [".venv\\Scripts\\python.exe", "-m", "pytest", "-p", "no:cacheprovider", "-q", "examples/refund_agent"],
   "cases": [
     {"name": "example: one clean run, six failing runs, one per default check", "args": [],
      "expect": {"exit_code": 1, "contains": ["6 failed, 1 passed", "faultgate-zero: 7 runs checked, 6 with failures",
@@ -17,10 +17,10 @@
      "expect": {"exit_code": 0, "contains": ["7 passed", "faultgate-zero warnings", "faultgate-zero: 7 runs checked, 6 with failures"]}},
     {"name": "the clean run alone passes", "args": ["-k", "refunds_one"],
      "expect": {"exit_code": 0, "contains": ["1 passed", "faultgate-zero: 1 runs checked, 0 with failures"]}},
-    {"name": "unknown check name is a usage error", "args": ["--fgz-checks=loops"],
-     "expect": {"exit_code": 4, "contains": ["unknown check 'loops'"]}},
-    {"name": "missing policy file is a usage error", "args": ["--fgz-policy=missing.json"],
-     "expect": {"exit_code": 4, "contains": ["not found"]}},
+    {"name": "unknown check name is a usage error (message on stderr, asserted in tests/test_config.py)",
+     "args": ["--fgz-checks=loops"], "expect": {"exit_code": 4, "not_contains": ["passed", "failed"]}},
+    {"name": "missing policy file is a usage error (message on stderr, asserted in tests/test_config.py)",
+     "args": ["--fgz-policy=missing.json"], "expect": {"exit_code": 4, "not_contains": ["passed", "failed"]}},
     {"name": "xdist: two workers, one merged summary", "args": ["-n", "2"],
      "expect": {"exit_code": 1, "contains": ["6 failed, 1 passed", "faultgate-zero: 7 runs checked, 6 with failures"]}},
     {"name": "selecting only the policy check", "args": ["--fgz-checks=policy"],
