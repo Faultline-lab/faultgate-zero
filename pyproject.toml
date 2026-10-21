@@ -1,0 +1,20 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "faultgate-zero"
+version = "0.0.0"
+description = "Agent failure checks inside your existing pytest tests (placeholder; first release 0.1.0)."
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+requires-python = ">=3.11"
+authors = [{ name = "Faultline-lab" }]
+classifiers = ["Development Status :: 1 - Planning", "Framework :: Pytest", "Programming Language :: Python :: 3"]
+
+[project.urls]
+Homepage = "https://github.com/Faultline-lab/faultgate-zero"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/faultgate_zero"]
