@@ -34,8 +34,9 @@ def _part_from_openai(p: Any) -> dict[str, Any] | None:
 
 def normalize_messages(raw: Any) -> Any:
     """Messages as GenAI ``parts``, which is what faultgate-zero reads. faultgate writes plain chat
-    messages (``{"role", "content"}``, OpenAI ``tool_calls``, ``tool`` role results); those become text,
-    ``tool_call`` and ``tool_call_response`` parts. Messages that already have parts are kept."""
+    messages (``{"role", "content"}``); their text becomes text parts. Tool calls are read the way
+    faultgate reads them, from parts and tool spans only, so a call is never counted twice.
+    Messages that already have parts are kept."""
     if isinstance(raw, str):
         try:
             raw = json.loads(raw)
@@ -48,22 +49,13 @@ def normalize_messages(raw: Any) -> Any:
         if not isinstance(m, dict) or isinstance(m.get("parts"), list):
             out.append(m)
             continue
-        role = str(m.get("role", "assistant"))
-        parts: list[dict[str, Any]] = []
         content = m.get("content")
-        if role == "tool" and m.get("tool_call_id"):
-            parts.append({"type": "tool_call_response", "id": str(m["tool_call_id"]), "result": content})
-        elif isinstance(content, list):
-            parts += [x for x in map(_part_from_openai, content) if x]
+        parts: list[dict[str, Any]] = []
+        if isinstance(content, list):
+            parts = [x for x in map(_part_from_openai, content) if x]
         elif content not in (None, ""):
-            parts.append({"type": "text", "content": str(content)})
-        for call in m.get("tool_calls") or []:
-            if isinstance(call, dict):
-                fn = call.get("function") if isinstance(call.get("function"), dict) else call
-                parts.append({"type": "tool_call", "id": str(call.get("id", "")), "name": str(fn.get("name", "unknown")),
-                              "arguments": fn.get("arguments", "")})
-        rest = {k: v for k, v in m.items() if k not in ("content", "tool_calls", "tool_call_id")}
-        out.append({**rest, "role": role, "parts": parts})
+            parts = [{"type": "text", "content": str(content)}]
+        out.append({**{k: v for k, v in m.items() if k != "content"}, "parts": parts})
     return out
 
 
