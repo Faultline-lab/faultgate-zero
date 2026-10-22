@@ -8,7 +8,7 @@ asserts miss: loops on empty results, repeated identical calls, tool errors the 
 provider errors it hid behind a fallback message, answers cut at the token limit, and tool calls that
 break your policy (refund limits, identity checks, required steps, denied paths).
 
-> **Status:** 0.1.0 alpha. Trace-based checks for existing pytest tests; no dependency on the
+> **Status:** 0.2.0 alpha. Trace-based checks for existing pytest tests; no dependency on the
 > `faultgate` package. See the [known limitations](docs/known-limitations.md).
 
 ## 60-second quickstart
@@ -203,6 +203,30 @@ Paths on the command line are relative to where pytest runs; in `pyproject.toml`
 With pytest-xdist (`-n`), workers send their results to the controller and one merged report is
 written.
 
+## Check plugins
+
+Other packages can add checks. A plugin registers an object in the `faultgate_zero.checks` entry point
+group:
+
+```toml
+[project.entry-points."faultgate_zero.checks"]
+contract = "fault_contract.zero_check:CHECK"
+```
+
+The object has three members: `name` (str), `default` (bool: whether it joins the default checks) and
+`run(trace, options) -> Verdict`. Plugins are discovered once, when faultgate-zero loads; installing one
+is enough. A plugin check works like a built-in one: `--fgz-checks`, `@pytest.mark.faultgate(skip=[...])`,
+the modes and the reports. A plugin named like a built-in check, or two plugins with one name, stop
+the session with a usage error. A plugin that raises gives a verdict that did not fire (`check crashed:
+<ExceptionType>`), a `FaultgateZeroWarning` and a "check crashed" line in the summary: your test is
+never failed by a bug in a plugin.
+
+## Reading other trace formats
+
+`faultgate_zero.formats.load(path, fmt="auto")` returns the traces in an export file. OTLP/JSON is read
+by faultgate-zero itself. OpenInference, Langfuse, LangSmith and Braintrust exports are read by
+faultgate's loaders: `pip install 'faultgate-zero[formats]'`.
+
 ## Supported SDKs and frameworks
 
 Tested here, with offline fakes that run the SDKs' own request and response code:
@@ -222,7 +246,7 @@ are not claimed until a test covers them. See [docs/known-limitations.md](docs/k
 ## Development
 
 ```bash
-pip install -e ".[dev,compat]"
+pip install -e ".[dev,compat,formats]"
 pytest                                 # the repo's own suite; its pyproject turns the plugin off for itself
 ```
 
