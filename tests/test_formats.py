@@ -61,3 +61,46 @@ def test_bad_input_is_a_format_error(tmp_path):
     other.write_text(json.dumps({"hello": 1}), encoding="utf-8")
     with pytest.raises(formats.FormatError, match="unrecognised trace format"):
         formats.load(other)
+
+
+@pytest.mark.parametrize("fmt", ["openinference", "langfuse", "langsmith", "braintrust"])
+def test_converted_traces_keep_prompt_and_answer(fmt):
+    pytest.importorskip("faultgate")
+    t = formats.load(DATA / f"{fmt}.json")[0]
+    assert t.prompt == "Refund order o-7 for customer C-123"
+    assert t.answer == "Refunded $120.00 to C-123."
+
+
+def test_converted_answers_reach_the_checks(tmp_path):
+    pytest.importorskip("faultgate")
+    from faultgate_zero.checks import Options, abstention
+
+    text = (DATA / "langsmith.json").read_text(encoding="utf-8")
+    assert "Refunded $120.00 to C-123." in text
+    f = tmp_path / "abstains.json"
+    f.write_text(text.replace("Refunded $120.00 to C-123.", "I could not find that information."), encoding="utf-8")
+    assert abstention(formats.load(f)[0], Options()).fired
+
+
+def test_chat_message_text_becomes_parts():
+    msgs = formats.normalize_messages(json.dumps([
+        {"role": "user", "content": "hi"},
+        {"role": "assistant", "content": None, "tool_calls": [{"id": "c1", "function": {"name": "lookup"}}]},
+        {"role": "assistant", "content": [{"type": "text", "text": "done"}, {"type": "image_url"}]},
+        {"role": "assistant", "parts": [{"type": "text", "content": "kept"}]},
+    ]))
+    assert msgs[0] == {"role": "user", "parts": [{"type": "text", "content": "hi"}]}
+    assert msgs[1]["parts"] == []  # tool calls are read from parts and tool spans, as faultgate does
+    assert msgs[2]["parts"] == [{"type": "text", "content": "done"}]
+    assert msgs[3]["parts"] == [{"type": "text", "content": "kept"}]
+
+
+@pytest.mark.parametrize("doc", [{"resourceSpans": [None]}, {"resourceSpans": [{"scopeSpans": [None]}]},
+                                 {"resourceSpans": [{"scopeSpans": [{"spans": [None]}]}]},
+                                 {"resourceSpans": [{"scopeSpans": [{"spans": [{"attributes": [None]}]}]}]}])
+def test_malformed_otlp_is_a_format_error_in_auto_mode(tmp_path, doc):
+    f = tmp_path / "bad.json"
+    f.write_text(json.dumps(doc), encoding="utf-8")
+    for fmt in ("auto", "otlp"):
+        with pytest.raises(formats.FormatError):
+            formats.load(f, fmt)

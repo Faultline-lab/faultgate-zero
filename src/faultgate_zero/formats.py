@@ -21,11 +21,62 @@ class FormatError(ValueError):
     """An export that cannot be read: unknown format, bad JSON, or a format that needs faultgate."""
 
 
+MESSAGE_ATTRS = ("gen_ai.input.messages", "gen_ai.output.messages")
+
+
+def _part_from_openai(p: Any) -> dict[str, Any] | None:
+    if isinstance(p, str):
+        return {"type": "text", "content": p}
+    if isinstance(p, dict) and p.get("type") in ("text", "input_text", "output_text"):
+        return {"type": "text", "content": str(p.get("text", p.get("content", "")))}
+    return None
+
+
+def normalize_messages(raw: Any) -> Any:
+    """Messages as GenAI ``parts``, which is what faultgate-zero reads. faultgate writes plain chat
+    messages (``{"role", "content"}``, OpenAI ``tool_calls``, ``tool`` role results); those become text,
+    ``tool_call`` and ``tool_call_response`` parts. Messages that already have parts are kept."""
+    if isinstance(raw, str):
+        try:
+            raw = json.loads(raw)
+        except ValueError:
+            return raw
+    if not isinstance(raw, list):
+        return raw
+    out = []
+    for m in raw:
+        if not isinstance(m, dict) or isinstance(m.get("parts"), list):
+            out.append(m)
+            continue
+        role = str(m.get("role", "assistant"))
+        parts: list[dict[str, Any]] = []
+        content = m.get("content")
+        if role == "tool" and m.get("tool_call_id"):
+            parts.append({"type": "tool_call_response", "id": str(m["tool_call_id"]), "result": content})
+        elif isinstance(content, list):
+            parts += [x for x in map(_part_from_openai, content) if x]
+        elif content not in (None, ""):
+            parts.append({"type": "text", "content": str(content)})
+        for call in m.get("tool_calls") or []:
+            if isinstance(call, dict):
+                fn = call.get("function") if isinstance(call.get("function"), dict) else call
+                parts.append({"type": "tool_call", "id": str(call.get("id", "")), "name": str(fn.get("name", "unknown")),
+                              "arguments": fn.get("arguments", "")})
+        rest = {k: v for k, v in m.items() if k not in ("content", "tool_calls", "tool_call_id")}
+        out.append({**rest, "role": role, "parts": parts})
+    return out
+
+
 def to_zero(t: Any) -> Trace:
-    """Convert a faultgate Trace to a faultgate-zero Trace."""
-    spans = [Span(span_id=s.span_id, parent_id=s.parent_id, name=s.name, start_ns=s.start_ns, end_ns=s.end_ns,
-                  attrs=dict(s.attrs), error=s.status_code == 2, status_message=s.status_message)
-             for s in t.spans]
+    """Convert a faultgate Trace to a faultgate-zero Trace: spans as they are, messages as parts."""
+    spans = []
+    for s in t.spans:
+        attrs = dict(s.attrs)
+        for k in MESSAGE_ATTRS:
+            if k in attrs:
+                attrs[k] = normalize_messages(attrs[k])
+        spans.append(Span(span_id=s.span_id, parent_id=s.parent_id, name=s.name, start_ns=s.start_ns,
+                          end_ns=s.end_ns, attrs=attrs, error=s.status_code == 2, status_message=s.status_message))
     root = t.root
     attrs = root.attrs if root else {}
     return Trace(trace_id=t.trace_id, scenario=str(attrs.get("faultgate.scenario") or t.key),
@@ -35,12 +86,16 @@ def to_zero(t: Any) -> Trace:
 def _is_plain_otlp(doc: Any) -> bool:
     if not (isinstance(doc, dict) and "resourceSpans" in doc):
         return False
-    for rs in doc.get("resourceSpans") or []:
-        for ss in rs.get("scopeSpans") or []:
-            for s in ss.get("spans") or []:
-                if any(a.get("key") == "openinference.span.kind" for a in s.get("attributes") or []):
+    for rs in _dicts(doc.get("resourceSpans")):
+        for ss in _dicts(rs.get("scopeSpans")):
+            for s in _dicts(ss.get("spans")):
+                if any(a.get("key") == "openinference.span.kind" for a in _dicts(s.get("attributes"))):
                     return False
     return True
+
+
+def _dicts(v: Any) -> list[dict[str, Any]]:
+    return [x for x in v if isinstance(x, dict)] if isinstance(v, list) else []
 
 
 def detect(doc: Any) -> str:
@@ -75,6 +130,8 @@ def load(path: str | Path, fmt: str = "auto") -> list[Trace]:
             raise
         except ValueError as exc:
             raise FormatError(f"{p}: {exc}") from None
+        except (KeyError, TypeError, AttributeError):
+            raise FormatError(f"{p}: unrecognised trace format") from None
     if fmt == "otlp":
         try:
             return otlp.from_dict(doc)
@@ -84,5 +141,7 @@ def load(path: str | Path, fmt: str = "auto") -> list[Trace]:
         return [to_zero(t) for t in _faultgate().load(p, fmt)]
     except FormatError:
         raise
-    except (ValueError, KeyError, TypeError) as exc:
+    except ValueError as exc:
         raise FormatError(f"{p}: {exc}") from None
+    except (KeyError, TypeError, AttributeError):
+        raise FormatError(f"{p}: not a valid {fmt} export") from None
