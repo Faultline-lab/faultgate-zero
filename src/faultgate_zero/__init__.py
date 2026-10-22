@@ -1,5 +1,5 @@
 """faultgate-zero: agent failure checks that run inside your existing pytest tests."""
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 from .patch import install, uninstall  # noqa: E402
 from .policy import Policy, PolicyError  # noqa: E402

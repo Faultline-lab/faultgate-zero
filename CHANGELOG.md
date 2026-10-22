@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.2.0 (unreleased)
+
+Adds features only; everything in 0.1.0 works as before.
+
+- Check plugins: the `faultgate_zero.checks` entry point group. A plugin object has `name`, `default`
+  and `run(trace, options) -> Verdict`; default plugins join `DEFAULT_CHECKS`. A name clash with a
+  built-in check is a usage error at startup; a plugin that raises gives a verdict that did not fire
+  (`check crashed: <ExceptionType>`), a `FaultgateZeroWarning` and a summary line.
+- `faultgate_zero.formats.load(path, fmt="auto")`: OTLP through faultgate-zero's own loader, and
+  OpenInference, Langfuse, LangSmith and Braintrust through faultgate's loaders, behind the new
+  `faultgate-zero[formats]` extra. `formats.to_zero()` converts a faultgate trace.
+
 ## 0.1.0
 
 First usable version.

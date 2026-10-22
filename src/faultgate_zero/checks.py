@@ -6,9 +6,11 @@ exact call; they are redacted before anything prints them.
 from __future__ import annotations
 
 import re
+import warnings
 from collections import defaultdict
 from dataclasses import dataclass
-from typing import Callable
+from importlib import metadata
+from typing import Any, Callable, Iterable
 
 from .policy import Policy
 from .results import error_of, is_empty
@@ -145,13 +147,68 @@ RULES: dict[str, Callable[[Trace, Options], Verdict]] = {
     "context_overflow": context_overflow,
     "abstention": abstention,
 }
-CHECK_NAMES = (*RULES, "policy")
-DEFAULT_CHECKS = ("search_loop", "repeated_call", "unrecovered_tool_error", "unrecovered_model_error",
-                  "context_overflow", "policy")
+BUILTIN_DEFAULTS = ("search_loop", "repeated_call", "unrecovered_tool_error", "unrecovered_model_error",
+                    "context_overflow", "policy")
+
+# Check plugins: other packages add checks through the ``faultgate_zero.checks`` entry point group.
+# Each entry point loads an object with ``name: str``, ``default: bool`` and
+# ``run(trace: Trace, options: Options) -> Verdict``. Discovery happens once, when this module loads.
+PLUGIN_GROUP = "faultgate_zero.checks"
+CRASHED = "check crashed: "
+
+
+class PluginError(ValueError):
+    """A check plugin that cannot be used: its name clashes with a built-in check, or it is malformed."""
+
+
+def discover(eps: Iterable[Any] | None = None) -> tuple[dict[str, Any], list[str]]:
+    """Load check plugins from entry points. Returns (plugins by name, errors). Never raises."""
+    if eps is None:
+        try:
+            eps = metadata.entry_points(group=PLUGIN_GROUP)
+        except Exception as exc:  # a broken install must not stop faultgate-zero from loading
+            return {}, [f"cannot read {PLUGIN_GROUP} entry points: {type(exc).__name__}"]
+    found: dict[str, Any] = {}
+    errors: list[str] = []
+    builtin = (*RULES, "policy")
+    for ep in eps:
+        where = f"check plugin {getattr(ep, 'name', '?')!r} ({getattr(ep, 'value', '?')})"
+        try:
+            obj = ep.load()
+        except Exception as exc:
+            errors.append(f"{where}: cannot load it: {type(exc).__name__}: {exc}")
+            continue
+        name = getattr(obj, "name", None)
+        if not isinstance(name, str) or not name or not callable(getattr(obj, "run", None))                 or not isinstance(getattr(obj, "default", None), bool):
+            errors.append(f"{where}: needs name (str), default (bool) and run(trace, options)")
+            continue
+        if name in builtin:
+            errors.append(f"{where}: name {name!r} clashes with a built-in check")
+            continue
+        if name in found:
+            errors.append(f"{where}: name {name!r} is used by two plugins")
+            continue
+        found[name] = obj
+    return found, errors
+
+
+PLUGINS, PLUGIN_ERRORS = discover()
+CHECK_NAMES = (*RULES, "policy", *PLUGINS)
+DEFAULT_CHECKS = (*BUILTIN_DEFAULTS, *(n for n, p in PLUGINS.items() if p.default))
+
+
+def plugin_errors() -> list[str]:
+    return list(PLUGIN_ERRORS)
+
+
+def _raise_plugin_errors() -> None:
+    if PLUGIN_ERRORS:
+        raise PluginError(PLUGIN_ERRORS[0])
 
 
 def resolve(names: str | list[str] | tuple[str, ...] | None) -> tuple[str, ...]:
     """Check names from a comma list or sequence; None means the default set. Unknown names are a usage error."""
+    _raise_plugin_errors()
     if names is None:
         return DEFAULT_CHECKS
     wanted = [n.strip() for n in (names.split(",") if isinstance(names, str) else names) if n.strip()]
@@ -161,8 +218,37 @@ def resolve(names: str | list[str] | tuple[str, ...] | None) -> tuple[str, ...]:
     return tuple(dict.fromkeys(wanted))
 
 
+def run_plugin(plugin: Any, t: Trace, options: Options) -> Verdict:
+    """Run one plugin check. A plugin that raises, or returns something else than a Verdict, gives a
+    verdict that did not fire and a warning: the user's test never fails because of a plugin bug."""
+    from .recorder import FaultgateZeroWarning
+
+    name = plugin.name
+    try:
+        v = plugin.run(t, options)
+        if not isinstance(v, Verdict):
+            raise TypeError(f"run() returned {type(v).__name__}, not Verdict")
+    except Exception as exc:
+        try:  # under -W error the warning raises; it must not fail the test either
+            warnings.warn(f"faultgate-zero: check {name!r} crashed ({type(exc).__name__}); it did not fire",
+                          FaultgateZeroWarning, stacklevel=2)
+        except Exception:
+            pass
+        return Verdict(name, False, f"{CRASHED}{type(exc).__name__}")
+    return v if v.check == name else Verdict(name, v.fired, v.reason, v.step)
+
+
+def crashed(v: Verdict) -> bool:
+    return not v.fired and v.reason.startswith(CRASHED)
+
+
 def run_checks(t: Trace, names: tuple[str, ...], policy: Policy, options: Options) -> list[Verdict]:
     out = []
     for n in names:
-        out.append(policy_check(t, policy) if n == "policy" else RULES[n](t, options))
+        if n == "policy":
+            out.append(policy_check(t, policy))
+        elif n in RULES:
+            out.append(RULES[n](t, options))
+        else:
+            out.append(run_plugin(PLUGINS[n], t, options))
     return out

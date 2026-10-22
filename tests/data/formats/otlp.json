@@ -1,0 +1,1539 @@
+{
+ "resourceSpans": [
+  {
+   "resource": {
+    "attributes": [
+     {
+      "key": "service.name",
+      "value": {
+       "stringValue": "faultline-agent"
+      }
+     }
+    ]
+   },
+   "scopeSpans": [
+    {
+     "scope": {
+      "name": "faultgate.examples",
+      "version": "0.1.0"
+     },
+     "spans": [
+      {
+       "traceId": "fc2cdab304bd903931b3e698c585e8fb",
+       "spanId": "275532b54a183867",
+       "name": "invoke_agent",
+       "kind": 1,
+       "startTimeUnixNano": "1758000000000000000",
+       "endTimeUnixNano": "1758000012100000000",
+       "attributes": [
+        {
+         "key": "gen_ai.operation.name",
+         "value": {
+          "stringValue": "invoke_agent"
+         }
+        },
+        {
+         "key": "gen_ai.system",
+         "value": {
+          "stringValue": "openrouter"
+         }
+        },
+        {
+         "key": "gen_ai.agent.name",
+         "value": {
+          "stringValue": "faultline-agent"
+         }
+        },
+        {
+         "key": "gen_ai.request.model",
+         "value": {
+          "stringValue": "openai/gpt-5.6-luna"
+         }
+        },
+        {
+         "key": "gen_ai.input.messages",
+         "value": {
+          "stringValue": "[{\"role\": \"user\", \"parts\": [{\"type\": \"text\", \"content\": \"Step 1: What is the internal codename of Zephyr Foundry? Step 2: The organization holding internal codename from Step 1 is affiliated with a partner organization. What is the external auditor of that partner organization? Step 3: The organization holding external auditor from Step 2 is affiliated with a partner organization. What is the internal codename of that partner organization? Provide the final answer for Step 3.\"}]}]"
+         }
+        },
+        {
+         "key": "gen_ai.output.messages",
+         "value": {
+          "stringValue": "[{\"role\": \"assistant\", \"parts\": [{\"type\": \"text\", \"content\": \"\"}]}]"
+         }
+        },
+        {
+         "key": "gen_ai.usage.input_tokens",
+         "value": {
+          "intValue": "19871"
+         }
+        },
+        {
+         "key": "gen_ai.usage.output_tokens",
+         "value": {
+          "intValue": "1579"
+         }
+        },
+        {
+         "key": "faultgate.termination",
+         "value": {
+          "stringValue": "Step cap reached"
+         }
+        }
+       ],
+       "status": {
+        "code": 2
+       }
+      },
+      {
+       "traceId": "fc2cdab304bd903931b3e698c585e8fb",
+       "spanId": "5dcd3e4007e456ea",
+       "parentSpanId": "275532b54a183867",
+       "name": "execute_tool search",
+       "kind": 1,
+       "startTimeUnixNano": "1758000001000000000",
+       "endTimeUnixNano": "1758000001800000000",
+       "attributes": [
+        {
+         "key": "gen_ai.operation.name",
+         "value": {
+          "stringValue": "execute_tool"
+         }
+        },
+        {
+         "key": "gen_ai.tool.name",
+         "value": {
+          "stringValue": "search"
+         }
+        },
+        {
+         "key": "gen_ai.tool.call.arguments",
+         "value": {
+          "stringValue": "{\"query\": \"\\\"Zephyr Foundry\\\" internal codename\"}"
+         }
+        },
+        {
+         "key": "gen_ai.tool.call.result",
+         "value": {
+          "stringValue": "{\"ok\": true, \"error\": null, \"n_candidates\": 0, \"candidates\": []}"
+         }
+        }
+       ],
+       "status": {
+        "code": 1
+       }
+      },
+      {
+       "traceId": "fc2cdab304bd903931b3e698c585e8fb",
+       "spanId": "3de338963f16a4f7",
+       "parentSpanId": "275532b54a183867",
+       "name": "execute_tool search",
+       "kind": 1,
+       "startTimeUnixNano": "1758000002000000000",
+       "endTimeUnixNano": "1758000002800000000",
+       "attributes": [
+        {
+         "key": "gen_ai.operation.name",
+         "value": {
+          "stringValue": "execute_tool"
+         }
+        },
+        {
+         "key": "gen_ai.tool.name",
+         "value": {
+          "stringValue": "search"
+         }
+        },
+        {
+         "key": "gen_ai.tool.call.arguments",
+         "value": {
+          "stringValue": "{\"query\": \"Zephyr Foundry\"}"
+         }
+        },
+        {
+         "key": "gen_ai.tool.call.result",
+         "value": {
+          "stringValue": "{\"ok\": true, \"error\": null, \"n_candidates\": 5, \"candidates\": [\"doc-0049\", \"doc-0184\", \"link-41b1d27ddb03\", \"link-52a7f49f34de\", \"link-618f865e3526\"]}"
+         }
+        }
+       ],
+       "status": {
+        "code": 1
+       }
+      },
+      {
+       "traceId": "fc2cdab304bd903931b3e698c585e8fb",
+       "spanId": "f57648a3c6d23ae1",
+       "parentSpanId": "275532b54a183867",
+       "name": "execute_tool search",
+       "kind": 1,
+       "startTimeUnixNano": "1758000003000000000",
+       "endTimeUnixNano": "1758000003800000000",
+       "attributes": [
+        {
+         "key": "gen_ai.operation.name",
+         "value": {
+          "stringValue": "execute_tool"
+         }
+        },
+        {
+         "key": "gen_ai.tool.name",
+         "value": {
+          "stringValue": "search"
+         }
+        },
+        {
+         "key": "gen_ai.tool.call.arguments",
+         "value": {
+          "stringValue": "{\"query\": \"\\\"Zinc-4249\\\" affiliated partner organization\"}"
+         }
+        },
+        {
+         "key": "gen_ai.tool.call.result",
+         "value": {
+          "stringValue": "{\"ok\": true, \"error\": null, \"n_candidates\": 0, \"candidates\": []}"
+         }
+        }
+       ],
+       "status": {
+        "code": 1
+       }
+      },
+      {
+       "traceId": "fc2cdab304bd903931b3e698c585e8fb",
+       "spanId": "60fd9797b4dc8e1d",
+       "parentSpanId": "275532b54a183867",
+       "name": "execute_tool search",
+       "kind": 1,
+       "startTimeUnixNano": "1758000004000000000",
+       "endTimeUnixNano": "1758000004800000000",
+       "attributes": [
+        {
+         "key": "gen_ai.operation.name",
+         "value": {
+          "stringValue": "execute_tool"
+         }
+        },
+        {
+         "key": "gen_ai.tool.name",
+         "value": {
+          "stringValue": "search"
+         }
+        },
+        {
+         "key": "gen_ai.tool.call.arguments",
+         "value": {
+          "stringValue": "{\"query\": \"\\\"Zephyr Foundry\\\" \\\"affiliated\\\"\"}"
+         }
+        },
+        {
+         "key": "gen_ai.tool.call.result",
+         "value": {
+          "stringValue": "{\"ok\": true, \"error\": null, \"n_candidates\": 0, \"candidates\": []}"
+         }
+        }
+       ],
+       "status": {
+        "code": 1
+       }
+      },
+      {
+       "traceId": "fc2cdab304bd903931b3e698c585e8fb",
+       "spanId": "2f4d34fc07bdaa7a",
+       "parentSpanId": "275532b54a183867",
+       "name": "execute_tool search",
+       "kind": 1,
+       "startTimeUnixNano": "1758000005000000000",
+       "endTimeUnixNano": "1758000005800000000",
+       "attributes": [
+        {
+         "key": "gen_ai.operation.name",
+         "value": {
+          "stringValue": "execute_tool"
+         }
+        },
+        {
+         "key": "gen_ai.tool.name",
+         "value": {
+          "stringValue": "search"
+         }
+        },
+        {
+         "key": "gen_ai.tool.call.arguments",
+         "value": {
+          "stringValue": "{\"query\": \"\\\"Rune-4241\\\"\"}"
+         }
+        },
+        {
+         "key": "gen_ai.tool.call.result",
+         "value": {
+          "stringValue": "{\"ok\": true, \"error\": null, \"n_candidates\": 0, \"candidates\": []}"
+         }
+        }
+       ],
+       "status": {
+        "code": 1
+       }
+      },
+      {
+       "traceId": "fc2cdab304bd903931b3e698c585e8fb",
+       "spanId": "31738957d1c2a2e6",
+       "parentSpanId": "275532b54a183867",
+       "name": "execute_tool search",
+       "kind": 1,
+       "startTimeUnixNano": "1758000006000000000",
+       "endTimeUnixNano": "1758000006800000000",
+       "attributes": [
+        {
+         "key": "gen_ai.operation.name",
+         "value": {
+          "stringValue": "execute_tool"
+         }
+        },
+        {
+         "key": "gen_ai.tool.name",
+         "value": {
+          "stringValue": "search"
+         }
+        },
+        {
+         "key": "gen_ai.tool.call.arguments",
+         "value": {
+          "stringValue": "{\"query\": \"Rune-4241 external auditor organization\"}"
+         }
+        },
+        {
+         "key": "gen_ai.tool.call.result",
+         "value": {
+          "stringValue": "{\"ok\": true, \"error\": null, \"n_candidates\": 0, \"candidates\": []}"
+         }
+        }
+       ],
+       "status": {
+        "code": 1
+       }
+      },
+      {
+       "traceId": "fc2cdab304bd903931b3e698c585e8fb",
+       "spanId": "8a5c7c65c24404ce",
+       "parentSpanId": "275532b54a183867",
+       "name": "execute_tool search",
+       "kind": 1,
+       "startTimeUnixNano": "1758000007000000000",
+       "endTimeUnixNano": "1758000007800000000",
+       "attributes": [
+        {
+         "key": "gen_ai.operation.name",
+         "value": {
+          "stringValue": "execute_tool"
+         }
+        },
+        {
+         "key": "gen_ai.tool.name",
+         "value": {
+          "stringValue": "search"
+         }
+        },
+        {
+         "key": "gen_ai.tool.call.arguments",
+         "value": {
+          "stringValue": "{\"query\": \"\\\"officially affiliated with Zephyr Foundry\\\"\"}"
+         }
+        },
+        {
+         "key": "gen_ai.tool.call.result",
+         "value": {
+          "stringValue": "{\"ok\": true, \"error\": null, \"n_candidates\": 0, \"candidates\": []}"
+         }
+        }
+       ],
+       "status": {
+        "code": 1
+       }
+      },
+      {
+       "traceId": "fc2cdab304bd903931b3e698c585e8fb",
+       "spanId": "f6328cf3b5901042",
+       "parentSpanId": "275532b54a183867",
+       "name": "execute_tool search",
+       "kind": 1,
+       "startTimeUnixNano": "1758000008000000000",
+       "endTimeUnixNano": "1758000008800000000",
+       "attributes": [
+        {
+         "key": "gen_ai.operation.name",
+         "value": {
+          "stringValue": "execute_tool"
+         }
+        },
+        {
+         "key": "gen_ai.tool.name",
+         "value": {
+          "stringValue": "search"
+         }
+        },
+        {
+         "key": "gen_ai.tool.call.arguments",
+         "value": {
+          "stringValue": "{\"query\": \"Rune 4241\"}"
+         }
+        },
+        {
+         "key": "gen_ai.tool.call.result",
+         "value": {
+          "stringValue": "{\"ok\": true, \"error\": null, \"n_candidates\": 0, \"candidates\": []}"
+         }
+        }
+       ],
+       "status": {
+        "code": 1
+       }
+      },
+      {
+       "traceId": "fc2cdab304bd903931b3e698c585e8fb",
+       "spanId": "5fa4a962c8924a92",
+       "parentSpanId": "275532b54a183867",
+       "name": "execute_tool search",
+       "kind": 1,
+       "startTimeUnixNano": "1758000009000000000",
+       "endTimeUnixNano": "1758000009800000000",
+       "attributes": [
+        {
+         "key": "gen_ai.operation.name",
+         "value": {
+          "stringValue": "execute_tool"
+         }
+        },
+        {
+         "key": "gen_ai.tool.name",
+         "value": {
+          "stringValue": "search"
+         }
+        },
+        {
+         "key": "gen_ai.tool.call.arguments",
+         "value": {
+          "stringValue": "{\"query\": \"\\\"external auditor\\\" \\\"Rune-4241\\\"\"}"
+         }
+        },
+        {
+         "key": "gen_ai.tool.call.result",
+         "value": {
+          "stringValue": "{\"ok\": true, \"error\": null, \"n_candidates\": 0, \"candidates\": []}"
+         }
+        }
+       ],
+       "status": {
+        "code": 1
+       }
+      },
+      {
+       "traceId": "fc2cdab304bd903931b3e698c585e8fb",
+       "spanId": "f337aff5b6f8c256",
+       "parentSpanId": "275532b54a183867",
+       "name": "execute_tool lookup",
+       "kind": 1,
+       "startTimeUnixNano": "1758000010000000000",
+       "endTimeUnixNano": "1758000010800000000",
+       "attributes": [
+        {
+         "key": "gen_ai.operation.name",
+         "value": {
+          "stringValue": "execute_tool"
+         }
+        },
+        {
+         "key": "gen_ai.tool.name",
+         "value": {
+          "stringValue": "lookup"
+         }
+        },
+        {
+         "key": "gen_ai.tool.call.arguments",
+         "value": {
+          "stringValue": "{\"doc_id\": \"link-618f865e3526\"}"
+         }
+        },
+        {
+         "key": "gen_ai.tool.call.result",
+         "value": {
+          "stringValue": "{\"ok\": true, \"error\": null, \"n_candidates\": 0, \"candidates\": []}"
+         }
+        }
+       ],
+       "status": {
+        "code": 1
+       }
+      },
+      {
+       "traceId": "fc2cdab304bd903931b3e698c585e8fb",
+       "spanId": "c9148fe0a9bdbdbf",
+       "parentSpanId": "275532b54a183867",
+       "name": "execute_tool search",
+       "kind": 1,
+       "startTimeUnixNano": "1758000011000000000",
+       "endTimeUnixNano": "1758000011800000000",
+       "attributes": [
+        {
+         "key": "gen_ai.operation.name",
+         "value": {
+          "stringValue": "execute_tool"
+         }
+        },
+        {
+         "key": "gen_ai.tool.name",
+         "value": {
+          "stringValue": "search"
+         }
+        },
+        {
+         "key": "gen_ai.tool.call.arguments",
+         "value": {
+          "stringValue": "{\"query\": \"external auditor Rune\"}"
+         }
+        },
+        {
+         "key": "gen_ai.tool.call.result",
+         "value": {
+          "stringValue": "{\"ok\": true, \"error\": null, \"n_candidates\": 5, \"candidates\": [\"link-0105f7c1b122\", \"link-025935fe9a65\", \"link-02da14669841\", \"link-04a01ded6ce6\", \"link-05bb197a3734\"]}"
+         }
+        }
+       ],
+       "status": {
+        "code": 1
+       }
+      },
+      {
+       "traceId": "fc2cdab304bd903931b3e698c585e8fb",
+       "spanId": "ed58c07adfc5f179",
+       "parentSpanId": "275532b54a183867",
+       "name": "execute_tool search",
+       "kind": 1,
+       "startTimeUnixNano": "1758000012000000000",
+       "endTimeUnixNano": "1758000012800000000",
+       "attributes": [
+        {
+         "key": "gen_ai.operation.name",
+         "value": {
+          "stringValue": "execute_tool"
+         }
+        },
+        {
+         "key": "gen_ai.tool.name",
+         "value": {
+          "stringValue": "search"
+         }
+        },
+        {
+         "key": "gen_ai.tool.call.arguments",
+         "value": {
+          "stringValue": "{\"query\": \"\\\"4241\\\"\"}"
+         }
+        },
+        {
+         "key": "gen_ai.tool.call.result",
+         "value": {
+          "stringValue": "{\"ok\": true, \"error\": null, \"n_candidates\": 0, \"candidates\": []}"
+         }
+        }
+       ],
+       "status": {
+        "code": 1
+       }
+      },
+      {
+       "traceId": "6d1f9d67a2d4f7d2f0d0793b00931995",
+       "spanId": "d8b43e84d7e5d958",
+       "name": "invoke_agent",
+       "kind": 1,
+       "startTimeUnixNano": "1758000000000000000",
+       "endTimeUnixNano": "1758000005100000000",
+       "attributes": [
+        {
+         "key": "gen_ai.operation.name",
+         "value": {
+          "stringValue": "invoke_agent"
+         }
+        },
+        {
+         "key": "gen_ai.system",
+         "value": {
+          "stringValue": "openrouter"
+         }
+        },
+        {
+         "key": "gen_ai.agent.name",
+         "value": {
+          "stringValue": "faultline-agent"
+         }
+        },
+        {
+         "key": "gen_ai.request.model",
+         "value": {
+          "stringValue": "openai/gpt-5.6-luna"
+         }
+        },
+        {
+         "key": "gen_ai.input.messages",
+         "value": {
+          "stringValue": "[{\"role\": \"user\", \"parts\": [{\"type\": \"text\", \"content\": \"Which firm is the external auditor of Aster Labs?\"}]}]"
+         }
+        },
+        {
+         "key": "gen_ai.output.messages",
+         "value": {
+          "stringValue": "[{\"role\": \"assistant\", \"parts\": [{\"type\": \"text\", \"content\": \"I couldn\\u2019t verify the external auditor for Aster Labs from the available documents\\u2014the searches returned no matching source.\"}]}]"
+         }
+        },
+        {
+         "key": "gen_ai.usage.input_tokens",
+         "value": {
+          "intValue": "1675"
+         }
+        },
+        {
+         "key": "gen_ai.usage.output_tokens",
+         "value": {
+          "intValue": "640"
+         }
+        },
+        {
+         "key": "faultgate.termination",
+         "value": {
+          "stringValue": "answered"
+         }
+        }
+       ],
+       "status": {
+        "code": 1
+       }
+      },
+      {
+       "traceId": "6d1f9d67a2d4f7d2f0d0793b00931995",
+       "spanId": "ffb8cb377fbed2ee",
+       "parentSpanId": "d8b43e84d7e5d958",
+       "name": "execute_tool search",
+       "kind": 1,
+       "startTimeUnixNano": "1758000001000000000",
+       "endTimeUnixNano": "1758000001800000000",
+       "attributes": [
+        {
+         "key": "gen_ai.operation.name",
+         "value": {
+          "stringValue": "execute_tool"
+         }
+        },
+        {
+         "key": "gen_ai.tool.name",
+         "value": {
+          "stringValue": "search"
+         }
+        },
+        {
+         "key": "gen_ai.tool.call.arguments",
+         "value": {
+          "stringValue": "{\"query\": \"Aster Labs external auditor firm\"}"
+         }
+        },
+        {
+         "key": "gen_ai.tool.call.result",
+         "value": {
+          "stringValue": "{\"ok\": true, \"error\": null, \"n_candidates\": 0, \"candidates\": []}"
+         }
+        }
+       ],
+       "status": {
+        "code": 1
+       }
+      },
+      {
+       "traceId": "6d1f9d67a2d4f7d2f0d0793b00931995",
+       "spanId": "5c20cfc12754b8b4",
+       "parentSpanId": "d8b43e84d7e5d958",
+       "name": "execute_tool search",
+       "kind": 1,
+       "startTimeUnixNano": "1758000002000000000",
+       "endTimeUnixNano": "1758000002800000000",
+       "attributes": [
+        {
+         "key": "gen_ai.operation.name",
+         "value": {
+          "stringValue": "execute_tool"
+         }
+        },
+        {
+         "key": "gen_ai.tool.name",
+         "value": {
+          "stringValue": "search"
+         }
+        },
+        {
+         "key": "gen_ai.tool.call.arguments",
+         "value": {
+          "stringValue": "{\"query\": \"\\\"Aster Labs\\\" auditor\"}"
+         }
+        },
+        {
+         "key": "gen_ai.tool.call.result",
+         "value": {
+          "stringValue": "{\"ok\": true, \"error\": null, \"n_candidates\": 0, \"candidates\": []}"
+         }
+        }
+       ],
+       "status": {
+        "code": 1
+       }
+      },
+      {
+       "traceId": "6d1f9d67a2d4f7d2f0d0793b00931995",
+       "spanId": "515ad88812582245",
+       "parentSpanId": "d8b43e84d7e5d958",
+       "name": "execute_tool search",
+       "kind": 1,
+       "startTimeUnixNano": "1758000003000000000",
+       "endTimeUnixNano": "1758000003800000000",
+       "attributes": [
+        {
+         "key": "gen_ai.operation.name",
+         "value": {
+          "stringValue": "execute_tool"
+         }
+        },
+        {
+         "key": "gen_ai.tool.name",
+         "value": {
+          "stringValue": "search"
+         }
+        },
+        {
+         "key": "gen_ai.tool.call.arguments",
+         "value": {
+          "stringValue": "{\"query\": \"Aster Labs annual report auditor external audit firm\"}"
+         }
+        },
+        {
+         "key": "gen_ai.tool.call.result",
+         "value": {
+          "stringValue": "{\"ok\": true, \"error\": null, \"n_candidates\": 0, \"candidates\": []}"
+         }
+        }
+       ],
+       "status": {
+        "code": 1
+       }
+      },
+      {
+       "traceId": "6d1f9d67a2d4f7d2f0d0793b00931995",
+       "spanId": "4bd3b5545bdea306",
+       "parentSpanId": "d8b43e84d7e5d958",
+       "name": "execute_tool search",
+       "kind": 1,
+       "startTimeUnixNano": "1758000004000000000",
+       "endTimeUnixNano": "1758000004800000000",
+       "attributes": [
+        {
+         "key": "gen_ai.operation.name",
+         "value": {
+          "stringValue": "execute_tool"
+         }
+        },
+        {
+         "key": "gen_ai.tool.name",
+         "value": {
+          "stringValue": "search"
+         }
+        },
+        {
+         "key": "gen_ai.tool.call.arguments",
+         "value": {
+          "stringValue": "{\"query\": \"Aster DM Healthcare external auditor firm Deloitte annual report\"}"
+         }
+        },
+        {
+         "key": "gen_ai.tool.call.result",
+         "value": {
+          "stringValue": "{\"ok\": true, \"error\": null, \"n_candidates\": 0, \"candidates\": []}"
+         }
+        }
+       ],
+       "status": {
+        "code": 1
+       }
+      },
+      {
+       "traceId": "8bf3879339eba84583941e17ec56b3de",
+       "spanId": "fa44146e0c980d5c",
+       "name": "invoke_agent",
+       "kind": 1,
+       "startTimeUnixNano": "1758000000000000000",
+       "endTimeUnixNano": "1758000003100000000",
+       "attributes": [
+        {
+         "key": "gen_ai.operation.name",
+         "value": {
+          "stringValue": "invoke_agent"
+         }
+        },
+        {
+         "key": "gen_ai.system",
+         "value": {
+          "stringValue": "openrouter"
+         }
+        },
+        {
+         "key": "gen_ai.agent.name",
+         "value": {
+          "stringValue": "faultline-agent"
+         }
+        },
+        {
+         "key": "gen_ai.request.model",
+         "value": {
+          "stringValue": "openai/gpt-5.6-luna"
+         }
+        },
+        {
+         "key": "gen_ai.input.messages",
+         "value": {
+          "stringValue": "[{\"role\": \"user\", \"parts\": [{\"type\": \"text\", \"content\": \"What is the internal codename of Girona Foundry?\"}]}]"
+         }
+        },
+        {
+         "key": "gen_ai.output.messages",
+         "value": {
+          "stringValue": "[{\"role\": \"assistant\", \"parts\": [{\"type\": \"text\", \"content\": \"The internal codename of Girona Foundry is **Zinc-4524**.\"}]}]"
+         }
+        },
+        {
+         "key": "gen_ai.usage.input_tokens",
+         "value": {
+          "intValue": "978"
+         }
+        },
+        {
+         "key": "gen_ai.usage.output_tokens",
+         "value": {
+          "intValue": "324"
+         }
+        },
+        {
+         "key": "faultgate.termination",
+         "value": {
+          "stringValue": "answered"
+         }
+        }
+       ],
+       "status": {
+        "code": 1
+       }
+      },
+      {
+       "traceId": "8bf3879339eba84583941e17ec56b3de",
+       "spanId": "8e823746b2003e24",
+       "parentSpanId": "fa44146e0c980d5c",
+       "name": "execute_tool search",
+       "kind": 1,
+       "startTimeUnixNano": "1758000001000000000",
+       "endTimeUnixNano": "1758000001800000000",
+       "attributes": [
+        {
+         "key": "gen_ai.operation.name",
+         "value": {
+          "stringValue": "execute_tool"
+         }
+        },
+        {
+         "key": "gen_ai.tool.name",
+         "value": {
+          "stringValue": "search"
+         }
+        },
+        {
+         "key": "gen_ai.tool.call.arguments",
+         "value": {
+          "stringValue": "{\"query\": \"\\\"Girona Foundry\\\" internal codename\"}"
+         }
+        },
+        {
+         "key": "gen_ai.tool.call.result",
+         "value": {
+          "stringValue": "{\"ok\": true, \"error\": null, \"n_candidates\": 0, \"candidates\": []}"
+         }
+        }
+       ],
+       "status": {
+        "code": 1
+       }
+      },
+      {
+       "traceId": "8bf3879339eba84583941e17ec56b3de",
+       "spanId": "7537fce2d8bfe949",
+       "parentSpanId": "fa44146e0c980d5c",
+       "name": "execute_tool search",
+       "kind": 1,
+       "startTimeUnixNano": "1758000002000000000",
+       "endTimeUnixNano": "1758000002800000000",
+       "attributes": [
+        {
+         "key": "gen_ai.operation.name",
+         "value": {
+          "stringValue": "execute_tool"
+         }
+        },
+        {
+         "key": "gen_ai.tool.name",
+         "value": {
+          "stringValue": "search"
+         }
+        },
+        {
+         "key": "gen_ai.tool.call.arguments",
+         "value": {
+          "stringValue": "{\"query\": \"Girona Foundry\"}"
+         }
+        },
+        {
+         "key": "gen_ai.tool.call.result",
+         "value": {
+          "stringValue": "{\"ok\": true, \"error\": null, \"n_candidates\": 5, \"candidates\": [\"doc-0104\", \"doc-0183\", \"link-08652480c27a\", \"link-120d73512e0f\", \"link-4f82dae92239\"]}"
+         }
+        }
+       ],
+       "status": {
+        "code": 1
+       }
+      },
+      {
+       "traceId": "3a9e507a0f6dd628395d642ce5db5a3e",
+       "spanId": "2426c8a9be08f906",
+       "name": "invoke_agent",
+       "kind": 1,
+       "startTimeUnixNano": "1758000000000000000",
+       "endTimeUnixNano": "1758000009100000000",
+       "attributes": [
+        {
+         "key": "gen_ai.operation.name",
+         "value": {
+          "stringValue": "invoke_agent"
+         }
+        },
+        {
+         "key": "gen_ai.system",
+         "value": {
+          "stringValue": "openrouter"
+         }
+        },
+        {
+         "key": "gen_ai.agent.name",
+         "value": {
+          "stringValue": "faultline-agent"
+         }
+        },
+        {
+         "key": "gen_ai.request.model",
+         "value": {
+          "stringValue": "openai/gpt-5.6-luna"
+         }
+        },
+        {
+         "key": "gen_ai.input.messages",
+         "value": {
+          "stringValue": "[{\"role\": \"user\", \"parts\": [{\"type\": \"text\", \"content\": \"What is the internal codename of Aster Systems?\"}]}]"
+         }
+        },
+        {
+         "key": "gen_ai.output.messages",
+         "value": {
+          "stringValue": "[{\"role\": \"assistant\", \"parts\": [{\"type\": \"text\", \"content\": \"The internal codename of Aster Systems is **Kelvin-4384**.\"}]}]"
+         }
+        },
+        {
+         "key": "gen_ai.usage.input_tokens",
+         "value": {
+          "intValue": "8726"
+         }
+        },
+        {
+         "key": "gen_ai.usage.output_tokens",
+         "value": {
+          "intValue": "1315"
+         }
+        },
+        {
+         "key": "faultgate.termination",
+         "value": {
+          "stringValue": "answered"
+         }
+        }
+       ],
+       "status": {
+        "code": 1
+       }
+      },
+      {
+       "traceId": "3a9e507a0f6dd628395d642ce5db5a3e",
+       "spanId": "ba0da268c0756c3a",
+       "parentSpanId": "2426c8a9be08f906",
+       "name": "execute_tool search",
+       "kind": 1,
+       "startTimeUnixNano": "1758000001000000000",
+       "endTimeUnixNano": "1758000001800000000",
+       "attributes": [
+        {
+         "key": "gen_ai.operation.name",
+         "value": {
+          "stringValue": "execute_tool"
+         }
+        },
+        {
+         "key": "gen_ai.tool.name",
+         "value": {
+          "stringValue": "search"
+         }
+        },
+        {
+         "key": "gen_ai.tool.call.arguments",
+         "value": {
+          "stringValue": "{\"query\": \"Aster Systems internal codename\"}"
+         }
+        },
+        {
+         "key": "gen_ai.tool.call.result",
+         "value": {
+          "stringValue": "{\"ok\": true, \"error\": null, \"n_candidates\": 0, \"candidates\": []}"
+         }
+        }
+       ],
+       "status": {
+        "code": 1
+       }
+      },
+      {
+       "traceId": "3a9e507a0f6dd628395d642ce5db5a3e",
+       "spanId": "e8b742fe42466da5",
+       "parentSpanId": "2426c8a9be08f906",
+       "name": "execute_tool search",
+       "kind": 1,
+       "startTimeUnixNano": "1758000002000000000",
+       "endTimeUnixNano": "1758000002800000000",
+       "attributes": [
+        {
+         "key": "gen_ai.operation.name",
+         "value": {
+          "stringValue": "execute_tool"
+         }
+        },
+        {
+         "key": "gen_ai.tool.name",
+         "value": {
+          "stringValue": "search"
+         }
+        },
+        {
+         "key": "gen_ai.tool.call.arguments",
+         "value": {
+          "stringValue": "{\"query\": \"\\\"Aster Systems\\\"\"}"
+         }
+        },
+        {
+         "key": "gen_ai.tool.call.result",
+         "value": {
+          "stringValue": "{\"ok\": true, \"error\": null, \"n_candidates\": 0, \"candidates\": []}"
+         }
+        }
+       ],
+       "status": {
+        "code": 1
+       }
+      },
+      {
+       "traceId": "3a9e507a0f6dd628395d642ce5db5a3e",
+       "spanId": "568516d5ae320fd5",
+       "parentSpanId": "2426c8a9be08f906",
+       "name": "execute_tool search",
+       "kind": 1,
+       "startTimeUnixNano": "1758000003000000000",
+       "endTimeUnixNano": "1758000003800000000",
+       "attributes": [
+        {
+         "key": "gen_ai.operation.name",
+         "value": {
+          "stringValue": "execute_tool"
+         }
+        },
+        {
+         "key": "gen_ai.tool.name",
+         "value": {
+          "stringValue": "search"
+         }
+        },
+        {
+         "key": "gen_ai.tool.call.arguments",
+         "value": {
+          "stringValue": "{\"query\": \"Aster system codename project\"}"
+         }
+        },
+        {
+         "key": "gen_ai.tool.call.result",
+         "value": {
+          "stringValue": "{\"ok\": true, \"error\": null, \"n_candidates\": 0, \"candidates\": []}"
+         }
+        }
+       ],
+       "status": {
+        "code": 1
+       }
+      },
+      {
+       "traceId": "3a9e507a0f6dd628395d642ce5db5a3e",
+       "spanId": "eca1592e8ce19736",
+       "parentSpanId": "2426c8a9be08f906",
+       "name": "execute_tool search",
+       "kind": 1,
+       "startTimeUnixNano": "1758000004000000000",
+       "endTimeUnixNano": "1758000004800000000",
+       "attributes": [
+        {
+         "key": "gen_ai.operation.name",
+         "value": {
+          "stringValue": "execute_tool"
+         }
+        },
+        {
+         "key": "gen_ai.tool.name",
+         "value": {
+          "stringValue": "search"
+         }
+        },
+        {
+         "key": "gen_ai.tool.call.arguments",
+         "value": {
+          "stringValue": "{\"query\": \"Aster internal name\"}"
+         }
+        },
+        {
+         "key": "gen_ai.tool.call.result",
+         "value": {
+          "stringValue": "{\"ok\": true, \"error\": null, \"n_candidates\": 0, \"candidates\": []}"
+         }
+        }
+       ],
+       "status": {
+        "code": 1
+       }
+      },
+      {
+       "traceId": "3a9e507a0f6dd628395d642ce5db5a3e",
+       "spanId": "b82c1f5a3f8c475d",
+       "parentSpanId": "2426c8a9be08f906",
+       "name": "execute_tool search",
+       "kind": 1,
+       "startTimeUnixNano": "1758000005000000000",
+       "endTimeUnixNano": "1758000005800000000",
+       "attributes": [
+        {
+         "key": "gen_ai.operation.name",
+         "value": {
+          "stringValue": "execute_tool"
+         }
+        },
+        {
+         "key": "gen_ai.tool.name",
+         "value": {
+          "stringValue": "search"
+         }
+        },
+        {
+         "key": "gen_ai.tool.call.arguments",
+         "value": {
+          "stringValue": "{\"query\": \"\\\"Aster\\\" \\\"codename\\\"\"}"
+         }
+        },
+        {
+         "key": "gen_ai.tool.call.result",
+         "value": {
+          "stringValue": "{\"ok\": true, \"error\": null, \"n_candidates\": 0, \"candidates\": []}"
+         }
+        }
+       ],
+       "status": {
+        "code": 1
+       }
+      },
+      {
+       "traceId": "3a9e507a0f6dd628395d642ce5db5a3e",
+       "spanId": "8f0fc15cc44b8edf",
+       "parentSpanId": "2426c8a9be08f906",
+       "name": "execute_tool search",
+       "kind": 1,
+       "startTimeUnixNano": "1758000006000000000",
+       "endTimeUnixNano": "1758000006800000000",
+       "attributes": [
+        {
+         "key": "gen_ai.operation.name",
+         "value": {
+          "stringValue": "execute_tool"
+         }
+        },
+        {
+         "key": "gen_ai.tool.name",
+         "value": {
+          "stringValue": "search"
+         }
+        },
+        {
+         "key": "gen_ai.tool.call.arguments",
+         "value": {
+          "stringValue": "{\"query\": \"internal codename\"}"
+         }
+        },
+        {
+         "key": "gen_ai.tool.call.result",
+         "value": {
+          "stringValue": "{\"ok\": true, \"error\": null, \"n_candidates\": 5, \"candidates\": [\"doc-0000\", \"doc-0001\", \"doc-0002\", \"doc-0003\", \"doc-0004\"]}"
+         }
+        }
+       ],
+       "status": {
+        "code": 1
+       }
+      },
+      {
+       "traceId": "3a9e507a0f6dd628395d642ce5db5a3e",
+       "spanId": "c31264cf384dd5e7",
+       "parentSpanId": "2426c8a9be08f906",
+       "name": "execute_tool search",
+       "kind": 1,
+       "startTimeUnixNano": "1758000007000000000",
+       "endTimeUnixNano": "1758000007800000000",
+       "attributes": [
+        {
+         "key": "gen_ai.operation.name",
+         "value": {
+          "stringValue": "execute_tool"
+         }
+        },
+        {
+         "key": "gen_ai.tool.name",
+         "value": {
+          "stringValue": "search"
+         }
+        },
+        {
+         "key": "gen_ai.tool.call.arguments",
+         "value": {
+          "stringValue": "{\"query\": \"Systems internal codename\"}"
+         }
+        },
+        {
+         "key": "gen_ai.tool.call.result",
+         "value": {
+          "stringValue": "{\"ok\": true, \"error\": null, \"n_candidates\": 0, \"candidates\": []}"
+         }
+        }
+       ],
+       "status": {
+        "code": 1
+       }
+      },
+      {
+       "traceId": "3a9e507a0f6dd628395d642ce5db5a3e",
+       "spanId": "74e570ea9ac041f5",
+       "parentSpanId": "2426c8a9be08f906",
+       "name": "execute_tool search",
+       "kind": 1,
+       "startTimeUnixNano": "1758000008000000000",
+       "endTimeUnixNano": "1758000008800000000",
+       "attributes": [
+        {
+         "key": "gen_ai.operation.name",
+         "value": {
+          "stringValue": "execute_tool"
+         }
+        },
+        {
+         "key": "gen_ai.tool.name",
+         "value": {
+          "stringValue": "search"
+         }
+        },
+        {
+         "key": "gen_ai.tool.call.arguments",
+         "value": {
+          "stringValue": "{\"query\": \"Aster\"}"
+         }
+        },
+        {
+         "key": "gen_ai.tool.call.result",
+         "value": {
+          "stringValue": "{\"ok\": true, \"error\": null, \"n_candidates\": 5, \"candidates\": [\"doc-0001\", \"doc-0076\", \"doc-0078\", \"doc-0110\", \"doc-0145\"]}"
+         }
+        }
+       ],
+       "status": {
+        "code": 1
+       }
+      },
+      {
+       "traceId": "2ab3b6c1e8913b1951ea564e20404848",
+       "spanId": "beb931defc6b84cd",
+       "name": "invoke_agent",
+       "kind": 1,
+       "startTimeUnixNano": "1758000000000000000",
+       "endTimeUnixNano": "1758000006100000000",
+       "attributes": [
+        {
+         "key": "gen_ai.operation.name",
+         "value": {
+          "stringValue": "invoke_agent"
+         }
+        },
+        {
+         "key": "gen_ai.system",
+         "value": {
+          "stringValue": "openrouter"
+         }
+        },
+        {
+         "key": "gen_ai.agent.name",
+         "value": {
+          "stringValue": "faultline-agent"
+         }
+        },
+        {
+         "key": "gen_ai.request.model",
+         "value": {
+          "stringValue": "openai/gpt-5.6-luna"
+         }
+        },
+        {
+         "key": "gen_ai.input.messages",
+         "value": {
+          "stringValue": "[{\"role\": \"user\", \"parts\": [{\"type\": \"text\", \"content\": \"In which district is Quill Systems headquartered?\"}]}]"
+         }
+        },
+        {
+         "key": "gen_ai.output.messages",
+         "value": {
+          "stringValue": "[{\"role\": \"assistant\", \"parts\": [{\"type\": \"text\", \"content\": \"Quill Systems is headquartered in the Onyx district.\"}]}]"
+         }
+        },
+        {
+         "key": "gen_ai.usage.input_tokens",
+         "value": {
+          "intValue": "3412"
+         }
+        },
+        {
+         "key": "gen_ai.usage.output_tokens",
+         "value": {
+          "intValue": "853"
+         }
+        },
+        {
+         "key": "faultgate.termination",
+         "value": {
+          "stringValue": "answered"
+         }
+        }
+       ],
+       "status": {
+        "code": 1
+       }
+      },
+      {
+       "traceId": "2ab3b6c1e8913b1951ea564e20404848",
+       "spanId": "e661907a6fd6aae7",
+       "parentSpanId": "beb931defc6b84cd",
+       "name": "execute_tool search",
+       "kind": 1,
+       "startTimeUnixNano": "1758000001000000000",
+       "endTimeUnixNano": "1758000001800000000",
+       "attributes": [
+        {
+         "key": "gen_ai.operation.name",
+         "value": {
+          "stringValue": "execute_tool"
+         }
+        },
+        {
+         "key": "gen_ai.tool.name",
+         "value": {
+          "stringValue": "search"
+         }
+        },
+        {
+         "key": "gen_ai.tool.call.arguments",
+         "value": {
+          "stringValue": "{\"query\": \"Quill Systems headquartered district\"}"
+         }
+        },
+        {
+         "key": "gen_ai.tool.call.result",
+         "value": {
+          "stringValue": "{\"ok\": true, \"error\": null, \"n_candidates\": 0, \"candidates\": []}"
+         }
+        }
+       ],
+       "status": {
+        "code": 1
+       }
+      },
+      {
+       "traceId": "2ab3b6c1e8913b1951ea564e20404848",
+       "spanId": "d08041f6ae1e478f",
+       "parentSpanId": "beb931defc6b84cd",
+       "name": "execute_tool search",
+       "kind": 1,
+       "startTimeUnixNano": "1758000002000000000",
+       "endTimeUnixNano": "1758000002800000000",
+       "attributes": [
+        {
+         "key": "gen_ai.operation.name",
+         "value": {
+          "stringValue": "execute_tool"
+         }
+        },
+        {
+         "key": "gen_ai.tool.name",
+         "value": {
+          "stringValue": "search"
+         }
+        },
+        {
+         "key": "gen_ai.tool.call.arguments",
+         "value": {
+          "stringValue": "{\"query\": \"\\\"Quill Systems\\\" headquarters\"}"
+         }
+        },
+        {
+         "key": "gen_ai.tool.call.result",
+         "value": {
+          "stringValue": "{\"ok\": true, \"error\": null, \"n_candidates\": 0, \"candidates\": []}"
+         }
+        }
+       ],
+       "status": {
+        "code": 1
+       }
+      },
+      {
+       "traceId": "2ab3b6c1e8913b1951ea564e20404848",
+       "spanId": "4de94d3bdbdcbad4",
+       "parentSpanId": "beb931defc6b84cd",
+       "name": "execute_tool search",
+       "kind": 1,
+       "startTimeUnixNano": "1758000003000000000",
+       "endTimeUnixNano": "1758000003800000000",
+       "attributes": [
+        {
+         "key": "gen_ai.operation.name",
+         "value": {
+          "stringValue": "execute_tool"
+         }
+        },
+        {
+         "key": "gen_ai.tool.name",
+         "value": {
+          "stringValue": "search"
+         }
+        },
+        {
+         "key": "gen_ai.tool.call.arguments",
+         "value": {
+          "stringValue": "{\"query\": \"Quill Systems company location\"}"
+         }
+        },
+        {
+         "key": "gen_ai.tool.call.result",
+         "value": {
+          "stringValue": "{\"ok\": true, \"error\": null, \"n_candidates\": 0, \"candidates\": []}"
+         }
+        }
+       ],
+       "status": {
+        "code": 1
+       }
+      },
+      {
+       "traceId": "2ab3b6c1e8913b1951ea564e20404848",
+       "spanId": "473ee5ec70f4f8fb",
+       "parentSpanId": "beb931defc6b84cd",
+       "name": "execute_tool search",
+       "kind": 1,
+       "startTimeUnixNano": "1758000004000000000",
+       "endTimeUnixNano": "1758000004800000000",
+       "attributes": [
+        {
+         "key": "gen_ai.operation.name",
+         "value": {
+          "stringValue": "execute_tool"
+         }
+        },
+        {
+         "key": "gen_ai.tool.name",
+         "value": {
+          "stringValue": "search"
+         }
+        },
+        {
+         "key": "gen_ai.tool.call.arguments",
+         "value": {
+          "stringValue": "{\"query\": \"Quill Systems district\"}"
+         }
+        },
+        {
+         "key": "gen_ai.tool.call.result",
+         "value": {
+          "stringValue": "{\"ok\": true, \"error\": null, \"n_candidates\": 0, \"candidates\": []}"
+         }
+        }
+       ],
+       "status": {
+        "code": 1
+       }
+      },
+      {
+       "traceId": "2ab3b6c1e8913b1951ea564e20404848",
+       "spanId": "02ccefd6d40c1bee",
+       "parentSpanId": "beb931defc6b84cd",
+       "name": "execute_tool search",
+       "kind": 1,
+       "startTimeUnixNano": "1758000005000000000",
+       "endTimeUnixNano": "1758000005800000000",
+       "attributes": [
+        {
+         "key": "gen_ai.operation.name",
+         "value": {
+          "stringValue": "execute_tool"
+         }
+        },
+        {
+         "key": "gen_ai.tool.name",
+         "value": {
+          "stringValue": "search"
+         }
+        },
+        {
+         "key": "gen_ai.tool.call.arguments",
+         "value": {
+          "stringValue": "{\"query\": \"Quill\"}"
+         }
+        },
+        {
+         "key": "gen_ai.tool.call.result",
+         "value": {
+          "stringValue": "{\"ok\": true, \"error\": null, \"n_candidates\": 5, \"candidates\": [\"doc-0072\", \"doc-0073\", \"doc-0082\", \"doc-0112\", \"doc-0116\"]}"
+         }
+        }
+       ],
+       "status": {
+        "code": 1
+       }
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}
