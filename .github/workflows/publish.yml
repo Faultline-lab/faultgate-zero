@@ -3,6 +3,12 @@ name: publish
 on:
   push:
     tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Existing release tag to publish
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -15,6 +21,8 @@ jobs:
         python-version: ["3.11", "3.12", "3.13"]
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.release_tag || github.ref }}
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
@@ -29,19 +37,28 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.release_tag || github.ref }}
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
       - name: Check release version
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag || github.ref_name }}
         run: |
           python - <<'PY'
+          import ast
           import os
-          import runpy
           import tomllib
           from pathlib import Path
           version = tomllib.loads(Path("pyproject.toml").read_text())["project"]["version"]
-          assert os.environ["GITHUB_REF_NAME"] == f"v{version}", "Tag must match package version"
-          assert runpy.run_path("src/faultgate_zero/__init__.py")["__version__"] == version
+          assert os.environ["RELEASE_TAG"] == f"v{version}", "Tag must match package version"
+          module = ast.parse(Path("src/faultgate_zero/__init__.py").read_text())
+          package_version = next(ast.literal_eval(node.value) for node in module.body
+                                 if isinstance(node, ast.Assign)
+                                 and any(isinstance(target, ast.Name) and target.id == "__version__"
+                                         for target in node.targets))
+          assert package_version == version, "Package and project versions must match"
           PY
       - run: python -m pip install build twine
       - run: python -m build
