@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "faultgate-zero"
-version = "0.1.0"
+version = "0.2.0"
 description = "Agent failure checks inside your existing pytest tests: loops, repeated calls, unrecovered errors, token cutoffs and policy breaks."
 readme = "README.md"
 license = "MIT"
@@ -15,6 +15,8 @@ classifiers = ["Development Status :: 3 - Alpha", "Framework :: Pytest", "Progra
 dependencies = ["pytest>=8"]
 
 [project.optional-dependencies]
+# every trace format through faultgate's loaders (formats.load); OTLP needs nothing extra
+formats = ["faultgate>=0.4,<0.5"]
 dev = ["openai>=2", "anthropic>=0.40", "pytest-xdist>=3"]
 # framework compatibility tests (tests/test_compat.py); litellm: CTO licence exception, test-only
 compat = ["litellm>=1.70", "langchain-openai>=0.3", "langchain-anthropic>=0.3",

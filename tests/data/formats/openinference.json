@@ -1,0 +1,30 @@
+{"resourceSpans": [{"scopeSpans": [{"spans": [
+ {"traceId": "0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f", "spanId": "1000000000000001", "name": "support_agent",
+  "startTimeUnixNano": "1790848800000000000", "endTimeUnixNano": "1790848804500000000",
+  "attributes": [
+   {"key": "openinference.span.kind", "value": {"stringValue": "AGENT"}},
+   {"key": "input.value", "value": {"stringValue": "Refund order o-7 for customer C-123"}},
+   {"key": "output.value", "value": {"stringValue": "Refunded $120.00 to C-123."}},
+   {"key": "metadata", "value": {"stringValue": "{\"scenario\": \"refund-o7\"}"}},
+   {"key": "user.id", "value": {"stringValue": "C-123"}}]},
+ {"traceId": "0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f", "spanId": "1000000000000002", "parentSpanId": "1000000000000001",
+  "name": "ChatCompletion", "startTimeUnixNano": "1790848800100000000", "endTimeUnixNano": "1790848801000000000",
+  "attributes": [
+   {"key": "openinference.span.kind", "value": {"stringValue": "LLM"}},
+   {"key": "llm.token_count.prompt", "value": {"intValue": "812"}},
+   {"key": "llm.token_count.completion", "value": {"intValue": "40"}}]},
+ {"traceId": "0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f", "spanId": "1000000000000003", "parentSpanId": "1000000000000001",
+  "name": "lookup_order", "startTimeUnixNano": "1790848801100000000", "endTimeUnixNano": "1790848801300000000",
+  "attributes": [
+   {"key": "openinference.span.kind", "value": {"stringValue": "TOOL"}},
+   {"key": "tool.name", "value": {"stringValue": "lookup_order"}},
+   {"key": "input.value", "value": {"stringValue": "{\"order_id\": \"o-7\"}"}},
+   {"key": "output.value", "value": {"stringValue": "{\"total\": 120}"}}]},
+ {"traceId": "0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f", "spanId": "1000000000000004", "parentSpanId": "1000000000000001",
+  "name": "issue_refund", "startTimeUnixNano": "1790848802000000000", "endTimeUnixNano": "1790848802400000000",
+  "attributes": [
+   {"key": "openinference.span.kind", "value": {"stringValue": "TOOL"}},
+   {"key": "tool.name", "value": {"stringValue": "issue_refund"}},
+   {"key": "tool.parameters", "value": {"stringValue": "{\"customer_id\": \"C-123\", \"amount\": 120}"}},
+   {"key": "output.value", "value": {"stringValue": "ok"}}]}
+]}]}]}
