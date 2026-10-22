@@ -66,6 +66,16 @@ def test_a_crashing_plugin_gives_a_verdict_that_did_not_fire_and_a_warning():
     assert checks.crashed(v)
 
 
+def test_a_crashing_plugin_under_warnings_as_errors_still_returns_a_verdict():
+    def boom(t, o):
+        raise RuntimeError("boom")
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        v = run_plugin(plugin("shape", run=boom), _trace(), Options())
+    assert v == Verdict("shape", False, "check crashed: RuntimeError")
+
+
 def test_a_plugin_returning_the_wrong_type_counts_as_a_crash():
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
@@ -104,7 +114,8 @@ class Shape:
     def run(self, trace, options):
         bad = [s for s in trace.steps if s.tool == "search"]
         if bad:
-            return Verdict("shape", True, f"step {bad[0].index} search: expected number, got string", bad[0].index)
+            return Verdict("shape", True, f"step {bad[0].index} search: expected number, got string; "
+                                          f"step {bad[0].index} search: missing required field", bad[0].index)
         return Verdict("shape", False, "ok")
 
 class Crash:
@@ -146,7 +157,8 @@ def test_skipped():
 ''')
     r = pytester.runpytest_subprocess()
     r.assert_outcomes(passed=1, failed=1)
-    r.stdout.fnmatch_lines(["*shape  step 1 search: expected number, got string", "  shape: 1"])
+    r.stdout.fnmatch_lines(["*shape  step 1 search: expected number, got string",
+                            "*       step 1 search: missing required field", "  shape: 1"])
 
 
 def test_a_crashing_plugin_never_fails_the_users_test(pytester, monkeypatch):
@@ -156,9 +168,10 @@ from agents import run_clean
 def test_ok():
     assert run_clean() == "found a"
 ''')
-    r = pytester.runpytest_subprocess("-W", "default")
-    r.assert_outcomes(passed=1)
-    r.stdout.fnmatch_lines(["faultgate-zero: 1 check crashed and did not fire*"])
+    for flag in ("default", "error"):
+        r = pytester.runpytest_subprocess("-W", flag)
+        r.assert_outcomes(passed=1)
+        r.stdout.fnmatch_lines(["faultgate-zero: 1 check crashed and did not fire*"])
 
 
 def test_a_plugin_named_like_a_builtin_check_stops_the_session(pytester, monkeypatch):

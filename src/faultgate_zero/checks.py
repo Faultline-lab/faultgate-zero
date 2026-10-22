@@ -229,8 +229,11 @@ def run_plugin(plugin: Any, t: Trace, options: Options) -> Verdict:
         if not isinstance(v, Verdict):
             raise TypeError(f"run() returned {type(v).__name__}, not Verdict")
     except Exception as exc:
-        warnings.warn(f"faultgate-zero: check {name!r} crashed ({type(exc).__name__}); it did not fire",
-                      FaultgateZeroWarning, stacklevel=2)
+        try:  # under -W error the warning raises; it must not fail the test either
+            warnings.warn(f"faultgate-zero: check {name!r} crashed ({type(exc).__name__}); it did not fire",
+                          FaultgateZeroWarning, stacklevel=2)
+        except Exception:
+            pass
         return Verdict(name, False, f"{CRASHED}{type(exc).__name__}")
     return v if v.check == name else Verdict(name, v.fired, v.reason, v.step)
 

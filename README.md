@@ -215,7 +215,8 @@ contract = "fault_contract.zero_check:CHECK"
 
 The object has three members: `name` (str), `default` (bool: whether it joins the default checks) and
 `run(trace, options) -> Verdict`. Plugins are discovered once, when faultgate-zero loads; installing one
-is enough. A plugin check works like a built-in one: `--fgz-checks`, `@pytest.mark.faultgate(skip=[...])`,
+is enough. A reason made of several parts joined by `; ` prints one part per line, as policy
+reasons do. A plugin check works like a built-in one: `--fgz-checks`, `@pytest.mark.faultgate(skip=[...])`,
 the modes and the reports. A plugin named like a built-in check, or two plugins with one name, stop
 the session with a usage error. A plugin that raises gives a verdict that did not fire (`check crashed:
 <ExceptionType>`), a `FaultgateZeroWarning` and a "check crashed" line in the summary: your test is
