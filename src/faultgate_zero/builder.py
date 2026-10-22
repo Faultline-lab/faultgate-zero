@@ -45,8 +45,8 @@ def build_trace(run: Run) -> Trace:
             if run.escaped(call.error):
                 attrs["faultgate.error_escaped"] = True
         chats.append(Span(span_id(run.id, f"chat-{i}"), root_id, f"chat {call.model}".strip(), call.start_ns,
-                          call.end_ns, drop_none(attrs), error=call.error is not None,
-                          status_message=_short(call.error)))
+                          call.end_ns, drop_none(attrs), error=call.error is not None or bool(attrs.get("error.type")),
+                          status_message=_short(call.error) or str(attrs.get("error.message", ""))))
 
     tools = [_tool_span(run, root_id, j, t) for j, t in enumerate(run.tool_calls)]
 

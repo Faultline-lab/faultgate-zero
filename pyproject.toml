@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "faultgate-zero"
-version = "0.0.0"
+version = "0.1.0"
 description = "Agent failure checks inside your existing pytest tests: loops, repeated calls, unrecovered errors, token cutoffs and policy breaks."
 readme = "README.md"
 license = "MIT"

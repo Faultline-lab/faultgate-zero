@@ -1,6 +1,6 @@
 # Known limitations
 
-What faultgate-zero does not do, or does imperfectly, as of 0.1.0 (unreleased).
+What faultgate-zero does not do, or does imperfectly, as of 0.1.0.
 
 ## Capture
 

@@ -8,10 +8,16 @@ asserts miss: loops on empty results, repeated identical calls, tool errors the 
 provider errors it hid behind a fallback message, answers cut at the token limit, and tool calls that
 break your policy (refund limits, identity checks, required steps, denied paths).
 
-> **Status:** not released yet. Install from source (below). The PyPI name `faultgate-zero` is
-> reserved for the first release, 0.1.0.
+> **Status:** 0.1.0 alpha. Trace-based checks for existing pytest tests; no dependency on the
+> `faultgate` package. See the [known limitations](docs/known-limitations.md).
 
 ## 60-second quickstart
+
+```bash
+pip install faultgate-zero
+```
+
+To try the included example from source:
 
 ```bash
 git clone https://github.com/Faultline-lab/faultgate-zero
@@ -203,9 +209,9 @@ Tested here, with offline fakes that run the SDKs' own request and response code
 
 | Package | Tested version | What is captured |
 |---|---|---|
-| `openai` | 3.35 | `chat.completions.create` / `parse` / `stream`, `responses.create` / `parse` / `stream`; sync and async; streaming; `with_raw_response`. |
+| `openai` | 2.54.0 | `chat.completions.create` / `parse` / `stream`, `responses.create` / `parse` / `stream`; sync and async; streaming; `with_raw_response`. |
 | `anthropic` | 1.17 | `messages.create`, `messages.stream`, and the `beta` equivalents; sync and async; streaming; server tool results. |
-| `litellm` | 1.107 | `completion`, `acompletion` (a call LiteLLM makes through the OpenAI SDK underneath is counted once). |
+| `litellm` | 1.106.2 | `completion`, `acompletion` (a call LiteLLM makes through the OpenAI SDK underneath is counted once). |
 | `langchain-openai` / `langchain-anthropic` | 1.7 | `ChatOpenAI`, `ChatAnthropic` with bound tools. |
 | `opentelemetry-instrumentation-openai-v2` | 2.4b0 | Runs alongside it; both record. |
 | `pytest-xdist` | 3.8 | `-n` with merged reports. |

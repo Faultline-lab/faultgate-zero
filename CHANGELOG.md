@@ -1,8 +1,12 @@
 # Changelog
 
-## 0.1.0 (unreleased)
+## 0.1.0
 
 First usable version.
+
+- Release review: detect Responses API failures returned without SDK exceptions; preserve received
+  text and function-call arguments when a Responses stream ends early.
+- CI and tagged releases run the test suite on Python 3.11, 3.12 and 3.13 before publishing.
 
 - pytest plugin (`pytest11` entry point): each test is one agent run, checked when it ends; `fail`,
   `warn` and `off` modes; per-test `@pytest.mark.faultgate(...)`; settings from marker, `--fgz-*`
