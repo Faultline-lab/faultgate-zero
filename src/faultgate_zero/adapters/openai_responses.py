@@ -66,6 +66,12 @@ def normalise(call: ModelCall) -> dict[str, Any]:
         usage = as_dict(d.get("usage"))
         attrs["gen_ai.usage.input_tokens"] = usage.get("input_tokens")
         attrs["gen_ai.usage.output_tokens"] = usage.get("output_tokens")
+    # The Responses API can report a provider failure in an HTTP 200 response,
+    # including a response.failed stream event, without the SDK raising.
+    if d.get("status") == "failed" or d.get("error"):
+        error = as_dict(d.get("error"))
+        attrs["error.type"] = str(error.get("code") or "response_failed")
+        attrs["error.message"] = str(error.get("message") or "Responses API returned status=failed")
     return drop_none(attrs)
 
 

@@ -1,6 +1,7 @@
 import json
 
 import openai
+import pytest
 
 import faultgate_zero as fz
 from fakes.openai_fakes import SSE, Script, client
@@ -79,3 +80,52 @@ def test_responses_stream_uses_the_completed_event():
         for _ in s:
             pass
     assert len(run.model_calls) == 1 and run.trace.answer == "streamed answer"
+
+
+@pytest.mark.parametrize("streamed", [False, True])
+@pytest.mark.parametrize("recovered", [False, True])
+def test_failed_response_is_checked_without_changing_sdk_behavior(streamed, recovered):
+    failed = {**response([], status="failed"),
+              "error": {"code": "server_error", "message": "Provider unavailable"}}
+    payload = SSE([("response.failed", {"type": "response.failed", "sequence_number": 0,
+                                        "response": failed})]) if streamed else failed
+    c = client(Script(payload, response([text("recovered")])))
+    with fz.run() as run:
+        result = c.responses.create(model="m", input="x", stream=streamed)
+        if streamed:
+            assert [event.type for event in result] == ["response.failed"]
+        else:
+            assert result.status == "failed"
+        if recovered:
+            assert c.responses.create(model="m", input="retry").output_text == "recovered"
+    assert run.capture_complete
+    assert run.trace.model_calls[0].error
+    assert bool(run.check().fired) is not recovered
+    if not recovered:
+        assert run.check().fired[0].check == "unrecovered_model_error"
+
+
+def test_responses_stream_keeps_tool_arguments_before_final_event():
+    events = [
+        ("response.output_item.added", {"type": "response.output_item.added", "sequence_number": 0,
+          "output_index": 0, "item": {**fcall("c1", "read_file", {}), "arguments": ""}}),
+        ("response.function_call_arguments.delta", {"type": "response.function_call_arguments.delta",
+          "sequence_number": 1, "output_index": 0, "item_id": "fc_c1", "delta": '{"path":"/etc/passwd"}'}),
+    ]
+    with fz.run() as run:
+        stream = client(Script(SSE(events))).responses.create(model="m", input="x", stream=True)
+        for event in stream:
+            if event.type == "response.function_call_arguments.delta":
+                break
+    [step] = run.steps
+    assert step.tool == "read_file" and json.loads(step.arguments) == {"path": "/etc/passwd"}
+    assert run.check().fired[0].check == "policy"
+
+
+def test_responses_stream_keeps_partial_text():
+    events = [("response.output_text.delta", {"type": "response.output_text.delta", "sequence_number": 0,
+               "item_id": "msg_1", "output_index": 0, "content_index": 0, "delta": "Hello", "logprobs": []})]
+    with fz.run() as run:
+        stream = client(Script(SSE(events))).responses.create(model="m", input="x", stream=True)
+        next(stream)
+    assert run.trace.answer == "Hello"

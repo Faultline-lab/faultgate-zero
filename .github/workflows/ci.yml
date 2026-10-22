@@ -19,11 +19,21 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
+      - name: Install test dependencies
+        run: python -m pip install -e ".[dev,compat]"
+      - name: Run tests
+        env:
+          LITELLM_LOCAL_MODEL_COST_MAP: "True"
+        run: python -m pytest -q
       - run: python -m pip install build twine
       - run: python -m build
       - run: python -m twine check --strict dist/*
       - name: Test installed wheel
         run: |
-          python -m pip install dist/*.whl
-          python -c "import faultgate_zero; assert faultgate_zero.__version__ == '0.0.0'"
+          python -m pip install --force-reinstall --no-deps dist/*.whl
+          python -c "import faultgate_zero, importlib.metadata; assert faultgate_zero.__version__ == importlib.metadata.version('faultgate-zero')"
           python -m pip check
+      - name: Run tests against the wheel
+        env:
+          LITELLM_LOCAL_MODEL_COST_MAP: "True"
+        run: python -m pytest -q

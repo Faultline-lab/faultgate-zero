@@ -380,11 +380,12 @@ class AnthropicEvents:
 
 
 class ResponsesEvents:
-    """OpenAI Responses stream events -> the final response (sent whole in the last event)."""
+    """Keep received output even when the caller stops before the final response event."""
 
     def __init__(self) -> None:
         self.final: Any = None
         self.partial: Any = None
+        self.items: dict[int, dict[str, Any]] = {}
 
     def feed(self, event: Any) -> None:
         e = as_dict(event)
@@ -393,6 +394,30 @@ class ResponsesEvents:
             self.final = e.get("response")
         elif t in ("response.created", "response.in_progress") and e.get("response"):
             self.partial = e["response"]
+        elif t in ("response.output_item.added", "response.output_item.done"):
+            self.items[e.get("output_index", 0)] = dict(e.get("item") or {})
+        elif t == "response.content_part.added":
+            item = self.items.setdefault(e.get("output_index", 0), {"type": "message", "content": []})
+            content = item.setdefault("content", [])
+            index = e.get("content_index", 0)
+            while len(content) <= index:
+                content.append({})
+            content[index] = dict(e.get("part") or {})
+        elif t == "response.output_text.delta":
+            item = self.items.setdefault(e.get("output_index", 0), {"type": "message", "content": []})
+            content = item.setdefault("content", [])
+            index = e.get("content_index", 0)
+            while len(content) <= index:
+                content.append({"type": "output_text", "text": ""})
+            content[index]["text"] = content[index].get("text", "") + e.get("delta", "")
+        elif t in ("response.function_call_arguments.delta", "response.function_call_arguments.done"):
+            item = self.items.setdefault(e.get("output_index", 0), {"type": "function_call"})
+            item["arguments"] = (e.get("arguments", "") if t.endswith(".done")
+                                 else item.get("arguments", "") + e.get("delta", ""))
 
     def result(self) -> Any:
-        return self.final if self.final is not None else self.partial
+        if self.final is not None:
+            return self.final
+        if self.items:
+            return {**(self.partial or {}), "output": [self.items[i] for i in sorted(self.items)]}
+        return self.partial
