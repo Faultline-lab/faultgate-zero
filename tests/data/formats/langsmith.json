@@ -1,0 +1,16 @@
+[
+ {"id": "r-root", "trace_id": "t-ls-1", "parent_run_id": null, "run_type": "chain", "name": "support_agent",
+  "inputs": {"input": "Refund order o-7 for customer C-123"}, "outputs": {"output": "Refunded $120.00 to C-123."},
+  "start_time": "2026-10-01T10:00:00.000000", "end_time": "2026-10-01T10:00:04.500000", "error": null,
+  "extra": {"metadata": {"scenario": "refund-o7", "enduser.id": "C-123"}}},
+ {"id": "r-llm", "trace_id": "t-ls-1", "parent_run_id": "r-root", "run_type": "llm", "name": "ChatOpenAI",
+  "inputs": {}, "outputs": {"generations": [[{"text": "", "generation_info": {"finish_reason": "tool_calls"}}]]},
+  "start_time": "2026-10-01T10:00:00.100000", "end_time": "2026-10-01T10:00:01.000000",
+  "prompt_tokens": 812, "completion_tokens": 40, "total_cost": 0.0021},
+ {"id": "r-t1", "trace_id": "t-ls-1", "parent_run_id": "r-root", "run_type": "tool", "name": "lookup_order",
+  "inputs": {"input": {"order_id": "o-7"}}, "outputs": {"output": {"total": 120}},
+  "start_time": "2026-10-01T10:00:01.100000", "end_time": "2026-10-01T10:00:01.300000"},
+ {"id": "r-t2", "trace_id": "t-ls-1", "parent_run_id": "r-root", "run_type": "tool", "name": "issue_refund",
+  "inputs": {"customer_id": "C-123", "amount": 120}, "outputs": {"output": "ok"},
+  "start_time": "2026-10-01T10:00:02.000000", "end_time": "2026-10-01T10:00:02.400000"}
+]

@@ -5,7 +5,7 @@ from dataclasses import dataclass, field, replace
 from typing import Callable
 
 from . import redact as _redact
-from .checks import DEFAULT_CHECKS, Options, Verdict, resolve, run_checks
+from .checks import DEFAULT_CHECKS, PLUGINS, Options, Verdict, resolve, run_checks
 from .policy import Policy
 from .trace import Trace
 
@@ -69,7 +69,8 @@ class RunResult:
         lines = [f"faultgate-zero: {n} check{'s' if n > 1 else ''} fired on run {self.scenario!r} ({head})"]
         width = max(len(v.check) for v in self.fired)
         for v in self.fired:
-            for j, part in enumerate(v.reason.split("; ") if v.check == "policy" else [v.reason]):
+            multi = v.check == "policy" or v.check in PLUGINS  # one part per line, joined by "; "
+            for j, part in enumerate(v.reason.split("; ") if multi else [v.reason]):
                 lines.append(f"  {(v.check if j == 0 else '').ljust(width)}  {part}")
         return "\n".join(lines)
 

@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 
 import pytest
 
-from . import otlp, patch, recorder, runner
+from . import checks, otlp, patch, recorder, runner
 from . import report as rpt
 from .config import Config, ConfigError, for_marker, resolve_session
 from .policy import PolicyError
@@ -254,6 +254,11 @@ def pytest_terminal_summary(terminalreporter, exitstatus: int, config: pytest.Co
     tr.write_line(line)
     for name, n in s["fired"].items():
         tr.write_line(f"  {name}: {n}")
+    crashes = sum(1 for e in state.entries for v in e["verdicts"]
+                  if not v["fired"] and str(v["reason"]).startswith(checks.CRASHED))
+    if crashes:
+        tr.write_line(f"faultgate-zero: {crashes} check{'s' if crashes > 1 else ''} crashed and did not fire "
+                      "(a bug in a check plugin; see the warnings)")
     for label, path in (("JSON report", cfg.json), ("Markdown summary", cfg.markdown), ("OTLP export", cfg.export_otlp)):
         if path:
             tr.write_line(f"faultgate-zero: {label} written to {path}")

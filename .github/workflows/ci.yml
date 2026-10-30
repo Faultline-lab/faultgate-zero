@@ -20,7 +20,7 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install test dependencies
-        run: python -m pip install -e ".[dev,compat]"
+        run: python -m pip install -e ".[dev,compat,formats]"
       - name: Run tests
         env:
           LITELLM_LOCAL_MODEL_COST_MAP: "True"

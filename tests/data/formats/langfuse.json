@@ -1,0 +1,17 @@
+{"data": [
+ {"id": "t-lf-1", "name": "support_agent", "timestamp": "2026-10-01T10:00:00.000Z", "latency": 4.5,
+  "input": {"messages": [{"role": "user", "content": "Refund order o-7 for customer C-123"}]},
+  "output": "Refunded $120.00 to C-123.",
+  "metadata": {"scenario": "refund-o7"}, "userId": "C-123",
+  "observations": [
+   {"id": "o-gen", "traceId": "t-lf-1", "type": "GENERATION", "name": "chat", "parentObservationId": null,
+    "startTime": "2026-10-01T10:00:00.100Z", "endTime": "2026-10-01T10:00:01.000Z",
+    "usageDetails": {"input": 812, "output": 40}, "costDetails": {"total": 0.0021}, "level": "DEFAULT"},
+   {"id": "o-t1", "traceId": "t-lf-1", "type": "TOOL", "name": "lookup_order", "parentObservationId": null,
+    "input": {"order_id": "o-7"}, "output": {"total": 120},
+    "startTime": "2026-10-01T10:00:01.100Z", "endTime": "2026-10-01T10:00:01.300Z", "level": "DEFAULT"},
+   {"id": "o-t2", "traceId": "t-lf-1", "type": "TOOL", "name": "issue_refund", "parentObservationId": null,
+    "input": {"customer_id": "C-123", "amount": 120}, "output": "ok",
+    "startTime": "2026-10-01T10:00:02.000Z", "endTime": "2026-10-01T10:00:02.400Z", "level": "DEFAULT"}
+  ]}
+]}
